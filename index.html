@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Tank Maze</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use a pixel-style font for the game UI */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a1a1a;
+            color: #fafafa;
+            overflow: hidden;
+        }
+        
+        canvas {
+            background-color: #000;
+            display: block;
+            border: 4px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        /* Style for the modal overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+
+        /* Custom styles for UI elements */
+        .game-button {
+            background-color: #004d00;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px #009900;
+        }
+        .game-button:hover {
+            background-color: #006600;
+            box-shadow: 0 4px #00cc00;
+            transform: translateY(-2px);
+        }
+        .game-button:active {
+            box-shadow: 0 1px #009900;
+            transform: translateY(2px);
+        }
+
+        .key-textarea {
+            background-color: #111;
+            border: 2px solid #444;
+            color: #ddd;
+            border-radius: 8px;
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            font-size: 10px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center h-screen p-4">
+
+    <div class="w-full max-w-6xl mx-auto">
+        
+        <!-- Game Title -->
+        <h1 class="text-3xl md:text-5xl text-center text-green-400 mb-4">Tank Maze</h1>
+
+        <!-- Scoreboard -->
+        <div class="flex justify-between w-full max-w-4xl mx-auto mb-2 text-xl md:text-3xl">
+            <div id="player1Score" class="text-blue-400">P1: 0</div>
+            <div id="roundInfo" class="text-yellow-400">Round: 1</div>
+            <div id="player2Score" class="text-red-400">P2: 0</div>
+        </div>
+
+        <!-- Game Canvas -->
+        <div class="relative w-full max-w-4xl mx-auto" style="aspect-ratio: 4 / 3;">
+            <canvas id="gameCanvas" class="w-full h-full"></canvas>
+            
+            <!-- Connection Modal -->
+            <div id="connectionModal" class="modal-overlay">
+                <div class="bg-gray-800 p-6 md:p-8 rounded-lg shadow-lg w-11/12 max-w-2xl text-center border-2 border-gray-600">
+                    <h2 class="text-2xl md:text-3xl mb-6 text-yellow-400">Multiplayer Connect</h2>
+                    
+                    <!-- Step 1: Initial Choice -->
+                    <div id="step1" class="space-x-4">
+                        <button id="createGameBtn" class="game-button">Create Game</button>
+                        <button id="joinGameBtn" class="game-button">Join Game</button>
+                    </div>
+
+                    <!-- Step 2: Host Creates Offer -->
+                    <div id="step2Host" class="hidden space-y-4">
+                        <p>Share this "Offer Key" with Player 2:</p>
+                        <textarea id="offerKeyText" class="key-textarea" readonly></textarea>
+                        <p>Waiting for Player 2's Response Key...</p>
+                        <textarea id="responseKeyInput" class="key-textarea" placeholder="Paste Player 2's Response Key here"></textarea>
+                        <button id="connectHostBtn" class="game-button">Connect</button>
+                    </div>
+
+                    <!-- Step 2: Client Joins -->
+                    <div id="step2Client" class="hidden space-y-4">
+                        <p>Paste the Host's "Offer Key" here:</p>
+                        <textarea id="offerKeyInput" class="key-textarea" placeholder="Paste Host's Offer Key here"></textarea>
+                        <button id="submitOfferBtn" class="game-button">Submit Offer</button>
+                    </div>
+
+                    <!-- Step 3: Client Creates Response -->
+                    <div id="step3Client" class="hidden space-y-4">
+                        <p>Share this "Response Key" with the Host:</p>
+                        <textarea id="responseKeyText" class="key-textarea" readonly></textarea>
+                        <p>Waiting for Host to connect...</p>
+                    </div>
+                    
+                    <!-- Status Text -->
+                    <div id="connectionStatus" class="mt-4 text-lg text-green-400 h-6"></div>
+                </div>
+            </div>
+
+            <!-- Round Over Modal -->
+            <div id="roundOverModal" class="modal-overlay hidden">
+                 <div class="bg-gray-800 p-8 rounded-lg shadow-lg text-center border-2 border-gray-600">
+                    <h2 id="roundWinner" class="text-4xl mb-4">Player 1 Wins!</h2>
+                    <p class="text-xl">Starting next round...</p>
+                 </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const connectionModal = document.getElementById('connectionModal');
+        const roundOverModal = document.getElementById('roundOverModal');
+        const roundWinnerEl = document.getElementById('roundWinner');
+        const step1 = document.getElementById('step1');
+        const step2Host = document.getElementById('step2Host');
+        const step2Client = document.getElementById('step2Client');
+        const step3Client = document.getElementById('step3Client');
+        const createGameBtn = document.getElementById('createGameBtn');
+        const joinGameBtn = document.getElementById('joinGameBtn');
+        const offerKeyText = document.getElementById('offerKeyText');
+        const responseKeyInput = document.getElementById('responseKeyInput');
+        const connectHostBtn = document.getElementById('connectHostBtn');
+        const offerKeyInput = document.getElementById('offerKeyInput');
+        const submitOfferBtn = document.getElementById('submitOfferBtn');
+        const responseKeyText = document.getElementById('responseKeyText');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const p1ScoreEl = document.getElementById('player1Score');
+        const p2ScoreEl = document.getElementById('player2Score');
+        const roundInfoEl = document.getElementById('roundInfo');
+
+        // --- Game Constants ---
+        const GRID_SIZE = 20; // 20x15 grid for a 4:3 aspect ratio
+        const CELL_SIZE = 40; // Pixel size of each grid cell
+        const TANK_SIZE = CELL_SIZE * 0.6;
+        const TANK_SPEED = 2;
+        const TANK_TURN_SPEED = 0.05;
+        const BULLET_SPEED = 5;
+        const BULLET_SIZE = 6;
+        const MAX_BOUNCES = 3;
+        const SHOT_COOLDOWN = 500; // 0.5 seconds
+        const MIN_SPAWN_DISTANCE = GRID_SIZE * 0.5; // Min grid cells apart
+
+        // --- Canvas Sizing ---
+        // Set internal canvas resolution based on grid
+        canvas.width = GRID_SIZE * CELL_SIZE;
+        canvas.height = (GRID_SIZE * 0.75) * CELL_SIZE; // 15 cells high
+        const MAZE_WIDTH = GRID_SIZE;
+        const MAZE_HEIGHT = GRID_SIZE * 0.75;
+
+
+        // --- Game State ---
+        let gameState = 'CONNECTING'; // CONNECTING, PLAYING, ROUND_OVER
+        let maze = [];
+        let tanks = [];
+        let bullets = [];
+        let scores = { p1: 0, p2: 0 };
+        let round = 1;
+        let isHost = false;
+        let playerNumber = 0; // 0 for P1 (host), 1 for P2 (client)
+        let gameLoopId = null;
+
+        // --- WebRTC State ---
+        let peerConnection;
+        let dataChannel;
+        // Use a public STUN server from Google
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+        let localIceCandidates = [];
+        let remoteIceCandidates = [];
+        let iceGatheringComplete = false;
+
+        // --- Input State ---
+        const input = {
+            up: false,
+            down: false,
+            left: false,
+            right: false,
+            shoot: false
+        };
+        // Host uses this to store client's input
+        const remoteInput = { ...input };
+
+        // --- Maze Generation (Recursive Backtracker) ---
+        function createMaze(width, height) {
+            let grid = Array.from({ length: height }, () => 
+                Array.from({ length: width }, () => ({
+                    n: true, s: true, e: true, w: true, visited: false
+                }))
+            );
+            
+            let stack = [];
+            let startX = Math.floor(Math.random() * width);
+            let startY = Math.floor(Math.random() * height);
+            
+            grid[startY][startX].visited = true;
+            stack.push({ x: startX, y: startY });
+
+            while (stack.length > 0) {
+                let current = stack.pop();
+                let neighbors = [];
+                
+                // Check neighbors
+                if (current.y > 0 && !grid[current.y - 1][current.x].visited) {
+                    neighbors.push({ x: current.x, y: current.y - 1, dir: 'n' });
+                }
+                if (current.y < height - 1 && !grid[current.y + 1][current.x].visited) {
+                    neighbors.push({ x: current.x, y: current.y + 1, dir: 's' });
+                }
+                if (current.x > 0 && !grid[current.y][current.x - 1].visited) {
+                    neighbors.push({ x: current.x - 1, y: current.y, dir: 'w' });
+                }
+                if (current.x < width - 1 && !grid[current.y][current.x + 1].visited) {
+                    neighbors.push({ x: current.x + 1, y: current.y, dir: 'e' });
+                }
+
+                if (neighbors.length > 0) {
+                    stack.push(current);
+                    let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    
+                    // Remove walls
+                    if (next.dir === 'n') {
+                        grid[current.y][current.x].n = false;
+                        grid[next.y][next.x].s = false;
+                    } else if (next.dir === 's') {
+                        grid[current.y][current.x].s = false;
+                        grid[next.y][next.x].n = false;
+                    } else if (next.dir === 'w') {
+                        grid[current.y][current.x].w = false;
+                        grid[next.y][next.x].e = false;
+                    } else if (next.dir === 'e') {
+                        grid[current.y][current.x].e = false;
+                        grid[next.y][next.x].w = false;
+                    }
+                    
+                    grid[next.y][next.x].visited = true;
+                    stack.push(next);
+                }
+            }
+            return grid;
+        }
+
+        // --- Tank & Bullet Spawning ---
+        function createTank(x, y, angle, color) {
+            return {
+                x: x,
+                y: y,
+                angle: angle,
+                color: color,
+                lastShot: 0
+            };
+        }
+
+        function spawnTanks() {
+            let p1Pos, p2Pos, dist;
+            
+            // Find two valid, distant spawn points
+            do {
+                p1Pos = {
+                    x: Math.floor(Math.random() * (MAZE_WIDTH - 2)) + 1,
+                    y: Math.floor(Math.random() * (MAZE_HEIGHT - 2)) + 1
+                };
+                p2Pos = {
+                    x: Math.floor(Math.random() * (MAZE_WIDTH - 2)) + 1,
+                    y: Math.floor(Math.random() * (MAZE_HEIGHT - 2)) + 1
+                };
+                dist = Math.sqrt(Math.pow(p1Pos.x - p2Pos.x, 2) + Math.pow(p1Pos.y - p2Pos.y, 2));
+            } while (dist < MIN_SPAWN_DISTANCE);
+
+            tanks = [
+                createTank(p1Pos.x * CELL_SIZE + CELL_SIZE / 2, p1Pos.y * CELL_SIZE + CELL_SIZE / 2, 0, '#3b82f6'), // Blue
+                createTank(p2Pos.x * CELL_SIZE + CELL_SIZE / 2, p2Pos.y * CELL_SIZE + CELL_SIZE / 2, Math.PI, '#ef4444') // Red
+            ];
+        }
+
+        function shoot(tank) {
+            const now = Date.now();
+            if (now - tank.lastShot < SHOT_COOLDOWN) return;
+            tank.lastShot = now;
+
+            bullets.push({
+                x: tank.x + Math.cos(tank.angle) * (TANK_SIZE / 2),
+                y: tank.y + Math.sin(tank.angle) * (TANK_SIZE / 2),
+                angle: tank.angle,
+                speedX: Math.cos(tank.angle) * BULLET_SPEED,
+                speedY: Math.sin(tank.angle) * BULLET_SPEED,
+                owner: tank.color === '#3b82f6' ? 0 : 1, // 0 for P1, 1 for P2
+                bounces: 0
+            });
+        }
+        
+        // --- WebRTC Connection Logic ---
+        function setupPeerConnection() {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+            localIceCandidates = [];
+            iceGatheringComplete = false;
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    localIceCandidates.push(event.candidate);
+                }
+            };
+            
+            peerConnection.onicegatheringstatechange = () => {
+                if (peerConnection.iceGatheringState === 'complete') {
+                    console.log("ICE gathering complete.");
+                    iceGatheringComplete = true;
+                    if (isHost) {
+                        // Host: Offer is ready
+                        const offerKey = {
+                            sdp: peerConnection.localDescription,
+                            candidates: localIceCandidates
+                        };
+                        offerKeyText.value = JSON.stringify(offerKey);
+                    } else {
+                        // Client: Answer is ready
+                        const responseKey = {
+                            sdp: peerConnection.localDescription,
+                            candidates: localIceCandidates
+                        };
+                        responseKeyText.value = JSON.stringify(responseKey);
+                    }
+                }
+            };
+            
+            // Add remote candidates as they come in
+            peerConnection.onconnectionstatechange = () => {
+                console.log('Connection state:', peerConnection.connectionState);
+                if (peerConnection.connectionState === 'connected') {
+                    startGame();
+                } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
+                    connectionStatus.innerText = "Connection Failed. Refresh.";
+                }
+            };
+        }
+        
+        function setupDataChannel(dc) {
+            dataChannel = dc;
+            dataChannel.onopen = () => {
+                console.log('Data channel open');
+                connectionStatus.innerText = "Connected!";
+                // Start game only when channel is open
+                // startGame();
+            };
+            dataChannel.onclose = () => {
+                console.log('Data channel closed');
+                gameState = 'CONNECTING';
+                connectionModal.style.display = 'flex';
+            };
+            dataChannel.onmessage = (event) => {
+                handleDataMessage(event.data);
+            };
+        }
+
+        // Host: Create Offer
+        async function createHostOffer() {
+            setupPeerConnection();
+            dataChannel = peerConnection.createDataChannel('gameData');
+            setupDataChannel(dataChannel);
+            
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            // ICE candidates will be gathered and handled by onicegatheringstatechange
+        }
+
+        // Host: Set Answer and connect
+        async function hostSetAnswer() {
+            try {
+                const responseKey = JSON.parse(responseKeyInput.value);
+                if (!responseKey.sdp || !responseKey.candidates) throw new Error();
+                
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(responseKey.sdp));
+                
+                responseKey.candidates.forEach(candidate => {
+                    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                });
+                
+                connectionStatus.innerText = "Connecting...";
+            } catch (e) {
+                connectionStatus.innerText = "Invalid Response Key!";
+                console.error(e);
+            }
+        }
+
+        // Client: Create Answer
+        async function createClientAnswer() {
+            try {
+                const offerKey = JSON.parse(offerKeyInput.value);
+                if (!offerKey.sdp || !offerKey.candidates) throw new Error();
+
+                setupPeerConnection();
+                peerConnection.ondatachannel = (event) => {
+                    setupDataChannel(event.channel);
+                };
+                
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offerKey.sdp));
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                // Add host's candidates
+                offerKey.candidates.forEach(candidate => {
+                    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                });
+
+                // Our candidates will be gathered and displayed by onicegatheringstatechange
+                step2Client.classList.add('hidden');
+                step3Client.classList.remove('hidden');
+                
+            } catch (e) {
+                connectionStatus.innerText = "Invalid Offer Key!";
+                console.error(e);
+            }
+        }
+        
+        // --- UI Button Listeners ---
+        createGameBtn.onclick = () => {
+            isHost = true;
+            playerNumber = 0;
+            step1.classList.add('hidden');
+            step2Host.classList.remove('hidden');
+            connectionStatus.innerText = "Gathering connection info...";
+            createHostOffer();
+        };
+        
+        joinGameBtn.onclick = () => {
+            isHost = false;
+            playerNumber = 1;
+            step1.classList.add('hidden');
+            step2Client.classList.remove('hidden');
+        };
+        
+        submitOfferBtn.onclick = () => {
+            connectionStatus.innerText = "Creating Response...";
+            createClientAnswer();
+        };
+        
+        connectHostBtn.onclick = () => {
+            hostSetAnswer();
+        };
+
+        // --- Data Channel Comms ---
+        function handleDataMessage(data) {
+            const msg = JSON.parse(data);
+            
+            if (isHost) {
+                // Host receives input from client
+                if (msg.type === 'input') {
+                    Object.assign(remoteInput, msg.input);
+                }
+            } else {
+                // Client receives game state from host
+                if (msg.type === 'state') {
+                    tanks = msg.tanks;
+                    bullets = msg.bullets;
+                    // Check for state change
+                    if (gameState !== msg.gameState) {
+                        gameState = msg.gameState;
+                        if (gameState === 'ROUND_OVER') {
+                            showRoundOver(msg.winner);
+                        }
+                    }
+                } else if (msg.type === 'new_round') {
+                    // Host signals a new round
+                    maze = msg.maze;
+                    scores = msg.scores;
+                    round = msg.round;
+                    updateUI();
+                    hideRoundOver();
+                }
+            }
+        }
+
+        function sendData(data) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify(data));
+            }
+        }
+
+        // Host: Send the authoritative game state
+        function sendGameState() {
+            if (!isHost) return;
+            sendData({
+                type: 'state',
+                tanks: tanks,
+                bullets: bullets,
+                gameState: gameState,
+                winner: lastWinner // will be null unless round is over
+            });
+        }
+        
+        // Client: Send input
+        function sendInput() {
+            if (isHost) return;
+            sendData({
+                type: 'input',
+                input: input
+            });
+        }
+
+        // --- Game Logic ---
+        function checkWallCollision(x, y, size) {
+            const halfSize = size / 2;
+            const gridX = Math.floor(x / CELL_SIZE);
+            const gridY = Math.floor(y / CELL_SIZE);
+            
+            if (gridX < 0 || gridX >= MAZE_WIDTH || gridY < 0 || gridY >= MAZE_HEIGHT) {
+                return true; // Out of bounds
+            }
+            
+            const cell = maze[gridY][gridX];
+            
+            // Check collisions with cell walls based on proximity
+            const cellX = gridX * CELL_SIZE;
+            const cellY = gridY * CELL_SIZE;
+
+            if (cell.n && (y - halfSize) < cellY) return { type: 'h' }; // Hit north wall
+            if (cell.s && (y + halfSize) > cellY + CELL_SIZE) return { type: 'h' }; // Hit south
+            if (cell.w && (x - halfSize) < cellX) return { type: 'v' }; // Hit west
+            if (cell.e && (x + halfSize) > cellX + CELL_SIZE) return { type: 'v' }; // Hit east
+            
+            return null;
+        }
+
+        function updateTank(tank, tankInput) {
+            if (tankInput.left) tank.angle -= TANK_TURN_SPEED;
+            if (tankInput.right) tank.angle += TANK_TURN_SPEED;
+            
+            let newX = tank.x;
+            let newY = tank.y;
+            
+            if (tankInput.up) {
+                newX += Math.cos(tank.angle) * TANK_SPEED;
+                newY += Math.sin(tank.angle) * TANK_SPEED;
+            }
+            if (tankInput.down) {
+                newX -= Math.cos(tank.angle) * TANK_SPEED;
+                newY -= Math.sin(tank.angle) * TANK_SPEED;
+            }
+
+            // Simple collision: check new pos. If collision, don't update.
+            // A better method would be to slide along the wall.
+            if (!checkWallCollision(newX, newY, TANK_SIZE)) {
+                tank.x = newX;
+                tank.y = newY;
+            } else {
+                 // Try only X movement
+                if (!checkWallCollision(newX, tank.y, TANK_SIZE)) {
+                    tank.x = newX;
+                }
+                // Try only Y movement
+                else if (!checkWallCollision(tank.x, newY, TANK_SIZE)) {
+                    tank.y = newY;
+                }
+            }
+            
+            if (tankInput.shoot) {
+                shoot(tank);
+            }
+        }
+
+        function updateBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                
+                bullet.x += bullet.speedX;
+                bullet.y += bullet.speedY;
+                
+                const collision = checkWallCollision(bullet.x, bullet.y, BULLET_SIZE);
+                
+                if (collision) {
+                    bullet.bounces++;
+                    if (bullet.bounces > MAX_BOUNCES) {
+                        bullets.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // Reflect angle
+                    if (collision.type === 'h') { // Horizontal wall
+                        bullet.speedY *= -1;
+                    } else if (collision.type === 'v') { // Vertical wall
+                        bullet.speedX *= -1;
+                    }
+                }
+                
+                // Check tank collision
+                for (let j = 0; j < tanks.length; j++) {
+                    if (bullet.owner === j) continue; // Don't hit self
+                    
+                    const tank = tanks[j];
+                    const dist = Math.sqrt(Math.pow(bullet.x - tank.x, 2) + Math.pow(bullet.y - tank.y, 2));
+                    
+                    if (dist < TANK_SIZE / 2) {
+                        // HIT!
+                        bullets.splice(i, 1);
+                        handleHit(bullet.owner);
+                        return; // Stop processing bullets this frame
+                    }
+                }
+            }
+        }
+        
+        let lastWinner = null;
+        function handleHit(winnerPlayerNumber) {
+            console.log(`Player ${winnerPlayerNumber + 1} scored!`);
+            lastWinner = winnerPlayerNumber;
+            if (winnerPlayerNumber === 0) {
+                scores.p1++;
+            } else {
+                scores.p2++;
+            }
+            
+            gameState = 'ROUND_OVER';
+            updateUI();
+            
+            // Host manages the round change
+            if (isHost) {
+                showRoundOver(winnerPlayerNumber);
+                // Send final state before reset
+                sendGameState(); 
+                
+                setTimeout(() => {
+                    startNewRound();
+                    
+                    // Send new round info to client
+                    sendData({
+                        type: 'new_round',
+                        maze: maze,
+                        tanks: tanks,
+                        scores: scores,
+                        round: round
+                    });
+                }, 3000); // 3-second delay
+            }
+        }
+        
+        function showRoundOver(winnerPlayerNumber) {
+            roundWinnerEl.innerText = `Player ${winnerPlayerNumber + 1} Wins!`;
+            roundOverModal.classList.remove('hidden');
+        }
+        
+        function hideRoundOver() {
+            roundOverModal.classList.add('hidden');
+            gameState = 'PLAYING';
+            lastWinner = null;
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            if (isHost) {
+                // Host updates game logic
+                updateTank(tanks[0], input);
+                updateTank(tanks[1], remoteInput);
+                updateBullets();
+                
+                // Host sends state to client
+                sendGameState();
+            }
+            // Client just sends its input (already handled by key listeners)
+            // and receives state (handled by onmessage)
+        }
+
+        // --- Drawing ---
+        function drawMaze() {
+            ctx.strokeStyle = '#00ff00'; // Green maze lines
+            ctx.lineWidth = 3;
+            
+            for (let y = 0; y < MAZE_HEIGHT; y++) {
+                for (let x = 0; x < MAZE_WIDTH; x++) {
+                    const cell = maze[y][x];
+                    const cellX = x * CELL_SIZE;
+                    const cellY = y * CELL_SIZE;
+                    
+                    if (cell.n) {
+                        ctx.beginPath();
+                        ctx.moveTo(cellX, cellY);
+                        ctx.lineTo(cellX + CELL_SIZE, cellY);
+                        ctx.stroke();
+                    }
+                    if (cell.s) {
+                        ctx.beginPath();
+                        ctx.moveTo(cellX, cellY + CELL_SIZE);
+                        ctx.lineTo(cellX + CELL_SIZE, cellY + CELL_SIZE);
+                        ctx.stroke();
+                    }
+                    if (cell.w) {
+                        ctx.beginPath();
+                        ctx.moveTo(cellX, cellY);
+                        ctx.lineTo(cellX, cellY + CELL_SIZE);
+                        ctx.stroke();
+                    }
+                    if (cell.e) {
+                        ctx.beginPath();
+                        ctx.moveTo(cellX + CELL_SIZE, cellY);
+                        ctx.lineTo(cellX + CELL_SIZE, cellY + CELL_SIZE);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function drawTank(tank) {
+            ctx.save();
+            ctx.translate(tank.x, tank.y);
+            ctx.rotate(tank.angle);
+            
+            // Tank body
+            ctx.fillStyle = tank.color;
+            ctx.fillRect(-TANK_SIZE / 2, -TANK_SIZE / 2, TANK_SIZE, TANK_SIZE);
+            
+            // Tank turret
+            ctx.fillStyle = '#999';
+            ctx.fillRect(0, -TANK_SIZE * 0.15, TANK_SIZE * 0.7, TANK_SIZE * 0.3);
+            
+            ctx.restore();
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = '#ffff00'; // Yellow bullets
+            bullets.forEach(bullet => {
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, BULLET_SIZE / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        
+        function updateUI() {
+            p1ScoreEl.innerText = `P1: ${scores.p1}`;
+            p2ScoreEl.innerText = `P2: ${scores.p2}`;
+            roundInfoEl.innerText = `Round: ${round}`;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (gameState === 'CONNECTING') return;
+            
+            drawMaze();
+            tanks.forEach(drawTank);
+            drawBullets();
+        }
+
+        // --- Main Game Loop ---
+        function gameLoop() {
+            update();
+            draw();
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+        
+        function startNewRound() {
+            round++;
+            maze = createMaze(MAZE_WIDTH, MAZE_HEIGHT);
+            spawnTanks();
+            bullets = [];
+            updateUI();
+            
+            if (!isHost) {
+                hideRoundOver();
+            }
+            gameState = 'PLAYING';
+            lastWinner = null;
+        }
+
+        function startGame() {
+            console.log("Game Starting!");
+            connectionModal.classList.add('hidden');
+            
+            if (isHost) {
+                // Host sets up the first round
+                maze = createMaze(MAZE_WIDTH, MAZE_HEIGHT);
+                spawnTanks();
+                bullets = [];
+                gameState = 'PLAYING';
+                
+                // Send initial round info to client
+                sendData({
+                    type: 'new_round',
+                    maze: maze,
+                    tanks: tanks,
+                    scores: scores,
+                    round: round
+                });
+            }
+            // Client will receive the 'new_round' message and set up its state
+            
+            updateUI();
+            
+            if (!gameLoopId) {
+                gameLoop();
+            }
+        }
+
+        // --- Input Handling ---
+        function setupInput() {
+            window.addEventListener('keydown', (e) => {
+                let inputChanged = false;
+                if (playerNumber === 0) { // Host uses Arrows
+                    if (e.key === 'ArrowUp') { input.up = true; inputChanged = true; }
+                    if (e.key === 'ArrowDown') { input.down = true; inputChanged = true; }
+                    if (e.key === 'ArrowLeft') { input.left = true; inputChanged = true; }
+                    if (e.key === 'ArrowRight') { input.right = true; inputChanged = true; }
+                    if (e.key === ' ') { input.shoot = true; inputChanged = true; }
+                } else { // Client uses WASD
+                    if (e.key === 'w' || e.key === 'W') { input.up = true; inputChanged = true; }
+                    if (e.key === 's' || e.key === 'S') { input.down = true; inputChanged = true; }
+                    if (e.key === 'a' || e.key === 'A') { input.left = true; inputChanged = true; }
+                    if (e.key === 'd' || e.key === 'D') { input.right = true; inputChanged = true; }
+                    if (e.key === ' ') { input.shoot = true; inputChanged = true; }
+                }
+                
+                if (inputChanged && !isHost) sendInput();
+            });
+
+            window.addEventListener('keyup', (e) => {
+                let inputChanged = false;
+                 if (playerNumber === 0) { // Host uses Arrows
+                    if (e.key === 'ArrowUp') { input.up = false; inputChanged = true; }
+                    if (e.key === 'ArrowDown') { input.down = false; inputChanged = true; }
+                    if (e.key === 'ArrowLeft') { input.left = false; inputChanged = true; }
+                    if (e.key === 'ArrowRight') { input.right = false; inputChanged = true; }
+                    if (e.key === ' ') { input.shoot = false; inputChanged = true; }
+                } else { // Client uses WASD
+                    if (e.key === 'w' || e.key === 'W') { input.up = false; inputChanged = true; }
+                    if (e.key === 's' || e.key === 'S') { input.down = false; inputChanged = true; }
+                    if (e.key === 'a' || e.key === 'A') { input.left = false; inputChanged = true; }
+                    if (e.key === 'd' || e.key === 'D') { input.right = false; inputChanged = true; }
+                    if (e.key === ' ') { input.shoot = false; inputChanged = true; }
+                }
+                
+                if (inputChanged && !isHost) sendInput();
+            });
+        }
+        
+        // --- Initialization ---
+        function init() {
+            // Set control info
+            if(playerNumber === 0) {
+                console.log("You are P1 (Host). Use Arrow Keys to move, Space to shoot.");
+            } else {
+                console.log("You are P2 (Client). Use WASD to move, Space to shoot.");
+            }
+            setupInput();
+            // Game starts once connection is established
+            draw(); // Draw initial empty canvas
+        }
+        
+        init();
+
+    </script>
+</body>
+</html>
