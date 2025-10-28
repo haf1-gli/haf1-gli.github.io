@@ -163,7 +163,10 @@ export const MSG_TYPES = {
     
     // Sync
     SYNC_REQUEST: 'sync_request',
-    SYNC_RESPONSE: 'sync_response'
+    SYNC_RESPONSE: 'sync_response',
+    
+    // Environment sync (FIX: Added for tree destruction)
+    TREE_DESTROYED: 'tree_destroyed'
 };
 
 // === PLAYER ROLES ===
