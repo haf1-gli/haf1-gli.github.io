@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Funy Tank Game</title>
+    <title>Funy Tank Game</title> <!-- Changed Title -->
     <style>
         /* Basic reset */
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #fff; overflow: hidden; background-color: #333; }
@@ -28,7 +28,18 @@
         /* Code Sharing Screens */
         #share-offer, #get-answer, #get-offer, #share-answer { background-color: rgba(0, 0, 0, 0.85); }
         .code-container { background-color: #222; padding: 15px; border-radius: 5px; margin: 15px 0; word-break: break-all; font-family: monospace; font-size: 0.9rem; max-width: 80%; text-align: left; }
-        .code-container textarea { width: 100%; min-height: 80px; margin-bottom: 10px; box-sizing: border-box; background-color: #333; color: #eee; border: 1px solid #555;}
+        /* --- FIX: Allow pointer events for text areas using IDs --- */
+        #answer-code-input, #offer-code-input {
+            width: 100%;
+            min-height: 80px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            background-color: #333;
+            color: #eee;
+            border: 1px solid #555;
+            pointer-events: auto; /* Allow clicks */
+            z-index: 1; /* Ensure it's above the container's pseudo-elements if any */
+        }
         .copy-button { margin-left: 10px; }
 
         /* Loading Screen */
@@ -294,7 +305,7 @@
         let loadingTextElement;
 
         // --- Input Handlers ---
-        const onKeyDown = (event) => { hideInitialInstructions(); if (!controlsEnabled) return; switch (event.code) { case 'KeyW': moveForward = true; break; case 'KeyA': moveLeft = true; break; case 'KeyS': moveBackward = true; break; case 'KeyD': moveRight = true; break; case 'KeyE': shoot(); break; case 'KeyR': if (!isReloading && !isReloaded) { isReloading = true; updateActionInstructions(); } break; case 'KeyQ': isAimLocked = !isAimLocked; break; case 'KeyI': isDebugMode = !isDebugMode; debugHelpers.visible = isDebugMode; if(pivotMarker) pivotMarker.visible = isDebugMode; if(turretPivotMarker) turretPivotMarker.visible = isDebugMode; break; } };
+        const onKeyDown = (event) => { hideInitialInstructions(); if (!controlsEnabled) return; switch (event.code) { case 'KeyW': moveForward = true; break; case 'KeyA': moveLeft = true; break; case 'KeyS': moveBackward = true; break; case 'KeyD': moveRight = true; break; case 'KeyE': shoot(); break; case 'KeyR': if (!isReloading && !isReloaded) { isReloading = true; updateActionInstructions(); } break; case 'KeyQ': isAimLocked = !isAimLocked; break; case 'KeyI': isDebugMode = !isDebugMode; debugHelpers.visible = isDebugMode; if(localTank?.userData.headPivotMarker) localTank.userData.headPivotMarker.visible = isDebugMode; if(localTank?.userData.turretPivotMarker) localTank.userData.turretPivotMarker.visible = isDebugMode; if(remoteTank?.userData.headPivotMarker) remoteTank.userData.headPivotMarker.visible = isDebugMode; if(remoteTank?.userData.turretPivotMarker) remoteTank.userData.turretPivotMarker.visible = isDebugMode; break; } };
         const onKeyUp = (event) => { if (!controlsEnabled) return; switch (event.code) { case 'KeyW': moveForward = false; break; case 'KeyA': moveLeft = false; break; case 'KeyS': moveBackward = false; break; case 'KeyD': moveRight = false; break; case 'KeyR': isReloading = false; updateActionInstructions(); break; } };
         const onMouseDown = (event) => { hideInitialInstructions(); if (!controlsEnabled && !isPrecisionAiming) return; if (event.button === 0) { isMouseDown = true; previousMouseX = event.clientX; previousMouseY = event.clientY; } };
         const onMouseUp = (event) => { if (event.button === 0) { isMouseDown = false; } };
@@ -321,15 +332,27 @@
             // General cleanup when leaving game states
             if (newState === GameState.MENU) {
                 resetMultiplayer();
-                document.getElementById('game-ui').style.display = 'none';
-                document.getElementById('score-p1').style.display = 'none';
-                document.getElementById('score-p2').style.display = 'none';
-                cinematicTopBar.classList.remove('active', 'full');
-                cinematicBottomBar.classList.remove('active', 'full');
+                // Ensure UI elements exist before hiding
+                const gameUI = document.getElementById('game-ui');
+                const scoreP1 = document.getElementById('score-p1');
+                const scoreP2 = document.getElementById('score-p2');
+                const cinematicTop = document.getElementById('cinematic-top');
+                const cinematicBottom = document.getElementById('cinematic-bottom');
+
+                if (gameUI) gameUI.style.display = 'none';
+                if (scoreP1) scoreP1.style.display = 'none';
+                if (scoreP2) scoreP2.style.display = 'none';
+                if (cinematicTop) cinematicTop.classList.remove('active', 'full');
+                if (cinematicBottom) cinematicBottom.classList.remove('active', 'full');
+
             } else if (newState !== GameState.GAME_LOADING && newState !== GameState.CONNECTING) { // Show game UI if not in menu, loading, or connecting
-                 document.getElementById('game-ui').style.display = 'flex';
-                 document.getElementById('score-p1').style.display = 'block';
-                 document.getElementById('score-p2').style.display = 'block';
+                // Ensure UI elements exist before showing
+                const gameUI = document.getElementById('game-ui');
+                const scoreP1 = document.getElementById('score-p1');
+                const scoreP2 = document.getElementById('score-p2');
+                if (gameUI) gameUI.style.display = 'flex';
+                if (scoreP1) scoreP1.style.display = 'block';
+                if (scoreP2) scoreP2.style.display = 'block';
             }
 
 
@@ -341,25 +364,31 @@
                 case GameState.JOINING_SHARE_ANSWER: document.getElementById('share-answer').classList.add('active'); break;
                 case GameState.CONNECTING: document.getElementById('connecting').classList.add('active'); break;
                 case GameState.GAME_LOADING:
-                    loadingScreen.classList.add('active');
-                    loadingScreen.style.opacity = '1';
-                    loadingTextElement.textContent = "Loading Assets...";
+                    if (loadingScreen) {
+                        loadingScreen.classList.add('active');
+                        loadingScreen.style.opacity = '1';
+                    }
+                    if (loadingTextElement) loadingTextElement.textContent = "Loading Assets...";
                     if (!renderer) { initThreeJS(); animate(); } // Init ONLY if it doesn't exist
                     // Map generation/loading is triggered by network events
                     break;
                 case GameState.GAME_PLAYING: controlsEnabled = true; document.exitPointerLock(); hideInitialInstructions(); break;
-                 case GameState.ROUND_OVER: controlsEnabled = false; roundOverMsgElement.classList.add('active'); break;
+                 case GameState.ROUND_OVER: controlsEnabled = false; if(roundOverMsgElement) roundOverMsgElement.classList.add('active'); break;
                  case GameState.CUTSCENE_START:
                     controlsEnabled = false; isPrecisionAiming = false;
-                    vignetteElement.classList.remove('active'); crosshairElement.classList.remove('active'); precisionExitInstructionsElement.classList.remove('active');
+                    if(vignetteElement) vignetteElement.classList.remove('active');
+                    if(crosshairElement) crosshairElement.classList.remove('active');
+                    if(precisionExitInstructionsElement) precisionExitInstructionsElement.classList.remove('active');
                     document.exitPointerLock();
-                    scoreP1Element.style.display = 'none'; scoreP2Element.style.display = 'none';
-                    cinematicTopBar.classList.add('active'); cinematicBottomBar.classList.add('active');
+                    if(scoreP1Element) scoreP1Element.style.display = 'none';
+                    if(scoreP2Element) scoreP2Element.style.display = 'none';
+                    if(cinematicTopBar) cinematicTopBar.classList.add('active');
+                    if(cinematicBottomBar) cinematicBottomBar.classList.add('active');
                     cutsceneTimer = 0; scoreRevealStep = 0; scoreRevealP1 = 0; scoreRevealP2 = 0;
                     break;
-                 case GameState.CUTSCENE_SCORE: scoreRevealElement.classList.add('active'); break;
-                 case GameState.CUTSCENE_OUTCOME: scoreRevealElement.classList.remove('active'); if (localScore > remoteScore) { if(winSound) winSound.play(); } break;
-                 case GameState.CUTSCENE_END: cinematicTopBar.classList.add('full'); cinematicBottomBar.classList.add('full'); break;
+                 case GameState.CUTSCENE_SCORE: if(scoreRevealElement) scoreRevealElement.classList.add('active'); break;
+                 case GameState.CUTSCENE_OUTCOME: if(scoreRevealElement) scoreRevealElement.classList.remove('active'); if (localScore > remoteScore) { if(winSound && winSound.isPlaying === false) winSound.play(); } break; // Ensure sound isn't already playing
+                 case GameState.CUTSCENE_END: if(cinematicTopBar) cinematicTopBar.classList.add('full'); if(cinematicBottomBar) cinematicBottomBar.classList.add('full'); break;
             }
         }
 
@@ -529,6 +558,7 @@
                               if (localTankState.health <= 0 && localTankState.isAlive) { handlePlayerDeath(localPlayerId); } // Check isAlive
                          } else { // It was the remote player hit
                              remoteTankState.health -= message.damage; // Update remote health estimate
+                             remoteTankState.health = Math.max(0, remoteTankState.health); // Clamp health
                              console.log(`Opponent hit! Their health (estimated): ${remoteTankState.health.toFixed(0)}`);
                              if (remoteTankState.health <= 0 && remoteTankState.isAlive) { handlePlayerDeath(remotePlayerId); } // Check isAlive
                          }
@@ -617,7 +647,7 @@
 
 
         // --- Create Tank Visual Structure ---
-        function createTankVisuals(color) { // Pass color here, but don't apply yet
+        function createTankVisuals() { // Removed color parameter
             const tankGroup = new THREE.Group();
 
             // Physics Box (Invisible)
@@ -681,6 +711,7 @@
                        object.scale.setScalar(bodyModelScale); object.position.copy(bodyModelPositionOffset); object.rotation.copy(bodyModelRotationOffset);
                        // --- REMOVED COLOR APPLICATION ---
                        const localPlaceholder = localTankGroup.getObjectByName("bodyPlaceholder"); if(localPlaceholder) localTankGroup.remove(localPlaceholder); localTankGroup.add(object.clone()); // Add cloned model
+                       // --- REMOVED COLOR APPLICATION ---
                        const remotePlaceholder = remoteTankGroup.getObjectByName("bodyPlaceholder"); if(remotePlaceholder) remoteTankGroup.remove(remotePlaceholder); remoteTankGroup.add(object.clone()); // Add cloned model
                   });
              });
@@ -1034,7 +1065,7 @@
 
         // --- Refactored Animate Helpers ---
         function updateLocalTank(delta) {
-            if (!localTankState.isAlive || !localTank) return;
+            if (!localTankState.isAlive || !localTank || !ground) return; // Add ground check
             // Physics
             if (controlsEnabled) {
                 if (moveLeft) playerAngularVelocity += playerTurnAcceleration * delta; if (moveRight) playerAngularVelocity -= playerTurnAcceleration * delta;
@@ -1110,10 +1141,17 @@
         }
         function updateDebugVisuals(delta) {
             const showDebugVisuals = isDebugMode || (isPrecisionAiming && trajectoryLine);
-            if(pivotMarker) pivotMarker.visible = isDebugMode; if(turretPivotMarker) turretPivotMarker.visible = isDebugMode; if(muzzleDebugArrow) muzzleDebugArrow.visible = isDebugMode; if(trajectoryLine) trajectoryLine.visible = showDebugVisuals;
+            if(localTank?.userData.headPivotMarker) localTank.userData.headPivotMarker.visible = isDebugMode; // Use refs stored on tank
+            if(localTank?.userData.turretPivotMarker) localTank.userData.turretPivotMarker.visible = isDebugMode;
+            if(remoteTank?.userData.headPivotMarker) remoteTank.userData.headPivotMarker.visible = isDebugMode;
+            if(remoteTank?.userData.turretPivotMarker) remoteTank.userData.turretPivotMarker.visible = isDebugMode;
+            if(muzzleDebugArrow) muzzleDebugArrow.visible = isDebugMode;
+            if(trajectoryLine) trajectoryLine.visible = showDebugVisuals;
+
             if (showDebugVisuals && tankTurretPivotLocal) { // Use local turret pivot
                  for (const obj of collidables) { if (obj.debugLine && localTank) { const positions = obj.debugLine.geometry.attributes.position; positions.setXYZ(0, localTankState.position.x, localTankState.position.y, localTankState.position.z); positions.setXYZ(1, obj.position.x, obj.position.y, obj.position.z); positions.needsUpdate = true; } }
-                 if(pivotMarker) pivotMarker.position.copy(tankHeadPivotPosition); if(turretPivotMarker) turretPivotMarker.position.copy(turretPivotPosition);
+                 // Pivot markers are positioned relative to their parents, no need to update position here if parent moves
+
                  muzzleWorldPos.copy(muzzlePosition); tankTurretPivotLocal.localToWorld(muzzleWorldPos); muzzleDirection.set(0, 0, -1); tankTurretPivotLocal.getWorldQuaternion(muzzleWorldQuat); muzzleOffsetQuat.setFromEuler(muzzleRotation); muzzleWorldQuat.multiply(muzzleOffsetQuat); muzzleDirection.applyQuaternion(muzzleWorldQuat).normalize();
                  if (muzzleDebugArrow && isDebugMode) { muzzleDebugArrow.position.copy(muzzleWorldPos); muzzleDebugArrow.setDirection(muzzleDirection); }
                  if (trajectoryLine) {
