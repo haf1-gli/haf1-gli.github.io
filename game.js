@@ -1082,7 +1082,9 @@ function updateCamera(delta) {
         camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, delta * 5);
         camera.updateProjectionMatrix();
     }
-} init() {
+} 
+
+function init() {
     console.log('Initializing game...');
     
     setThreeReference(THREE);
