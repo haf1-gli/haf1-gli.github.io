@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FUNY TANK GAME - Multiplayer</title>
+    <style>
+        /* Basic reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        canvas {
+            display: block;
+        }
+
+        /* === LOADING SCREEN === */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            z-index: 1000;
+            transition: opacity 1s ease;
+        }
+
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loading-screen .attributions {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 10px;
+            color: #aaa;
+            line-height: 1.4;
+            max-width: 90%;
+        }
+
+        #loading-screen .attributions a {
+            color: #ccc;
+        }
+
+        /* === MAIN MENU === */
+        #main-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 900;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        #main-menu.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        #main-menu h1 {
+            font-size: 4rem;
+            font-weight: bold;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.8);
+            margin-bottom: 3rem;
+            letter-spacing: 0.1em;
+        }
+
+        .menu-form {
+            background: rgba(0,0,0,0.5);
+            padding: 2rem;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            min-width: 400px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            padding: 0.75rem;
+            font-size: 1rem;
+            border: 2px solid #555;
+            border-radius: 6px;
+            background: #222;
+            color: #fff;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            border-color: #4a9eff;
+        }
+
+        .form-group input.error {
+            border-color: #ff4a4a;
+        }
+
+        .error-message {
+            color: #ff4a4a;
+            font-size: 0.85rem;
+            min-height: 1.2em;
+        }
+
+        .color-selector {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .color-option {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+
+        .color-option.selected {
+            border-color: #fff;
+            box-shadow: 0 0 15px rgba(255,255,255,0.5);
+        }
+
+        .menu-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .menu-btn {
+            flex: 1;
+            padding: 1rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        .menu-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .menu-btn.host {
+            background: #4a9eff;
+            color: #fff;
+        }
+
+        .menu-btn.host:hover:not(:disabled) {
+            background: #357abd;
+            transform: translateY(-2px);
+        }
+
+        .menu-btn.join {
+            background: #50c878;
+            color: #fff;
+        }
+
+        .menu-btn.join:hover:not(:disabled) {
+            background: #3a9d5d;
+            transform: translateY(-2px);
+        }
+
+        /* === LOBBY SCREEN === */
+        #lobby-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 900;
+        }
+
+        #lobby-screen.active {
+            display: flex;
+        }
+
+        .lobby-content {
+            background: rgba(0,0,0,0.6);
+            padding: 3rem;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .lobby-content h2 {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .code-display {
+            background: #000;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+            font-family: 'Courier New', monospace;
+            font-size: 2.5rem;
+            letter-spacing: 0.3em;
+            font-weight: bold;
+            color: #4a9eff;
+        }
+
+        .code-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.2em;
+            border: 2px solid #555;
+            border-radius: 8px;
+            background: #222;
+            color: #fff;
+            text-transform: uppercase;
+        }
+
+        .lobby-btn {
+            margin-top: 1rem;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #4a9eff;
+            color: #fff;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .lobby-btn:hover {
+            background: #357abd;
+        }
+
+        .lobby-btn.secondary {
+            background: #555;
+        }
+
+        .lobby-btn.secondary:hover {
+            background: #666;
+        }
+
+        .lobby-status {
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            color: #aaa;
+        }
+
+        /* === GAME MODE SELECTION === */
+        #mode-selection {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 950;
+        }
+
+        #mode-selection.active {
+            display: flex;
+        }
+
+        .mode-content {
+            background: rgba(26,26,46,0.95);
+            padding: 3rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .mode-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .mode-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .mode-btn {
+            padding: 1.5rem 3rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #4a9eff;
+            color: #fff;
+            transition: all 0.3s;
+        }
+
+        .mode-btn:hover {
+            background: #357abd;
+            transform: translateY(-2px);
+        }
+
+        /* === SCOREBOARD === */
+        #scoreboard {
+            position: fixed;
+            top: 20px;
+            left: 0;
+            right: 0;
+            display: none;
+            justify-content: space-between;
+            padding: 0 40px;
+            z-index: 800;
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        #scoreboard.active {
+            display: flex;
+        }
+
+        .score-left, .score-right {
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+
+        /* === WIN MESSAGE === */
+        #win-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 3rem;
+            font-weight: bold;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
+            z-index: 850;
+            opacity: 0;
+            pointer-events: none;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        #win-message.show {
+            animation: winMessagePop 0.8s ease-out forwards;
+        }
+
+        @keyframes winMessagePop {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.2);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* === GAME UI === */
+        #game-ui {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            z-index: 800;
+            pointer-events: none;
+            display: none;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        #game-ui.active {
+            display: flex;
+        }
+
+        #action-instructions {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 5px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            min-height: 1.2em;
+        }
+
+        .bar-container {
+            width: 200px;
+            background-color: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+
+        #reload-bar-container {
+            height: 8px;
+        }
+
+        #health-bar-container {
+            height: 15px;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.1s linear;
+            border-radius: 4px;
+        }
+
+        #health-bar-fill {
+            background-color: #00ff00;
+            width: 100%;
+        }
+
+        #reload-bar-fill {
+            background-color: #cccccc;
+            width: 100%;
+        }
+
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.9) 100%);
+            pointer-events: none;
+            z-index: 799;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #vignette.active {
+            opacity: 1;
+        }
+
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 801;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #crosshair.active {
+            opacity: 1;
+        }
+
+        #initial-instructions {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            text-align: center;
+            z-index: 802;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+        }
+
+        #initial-instructions.hidden {
+            opacity: 0;
+        }
+
+        #precision-exit-instructions {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            z-index: 802;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        #precision-exit-instructions.active {
+            opacity: 1;
+        }
+
+        /* === CUTSCENE OVERLAY === */
+        #cutscene-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 870;
+            pointer-events: none;
+            display: none;
+        }
+
+        #cutscene-overlay.active {
+            display: block;
+            pointer-events: all;
+        }
+
+        .letterbox {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 10%;
+            background: #000;
+            transition: transform 0.8s ease-out;
+        }
+
+        .letterbox.top {
+            top: 0;
+            transform: translateY(-100%);
+        }
+
+        .letterbox.bottom {
+            bottom: 0;
+            transform: translateY(100%);
+        }
+
+        .letterbox.show {
+            transform: translateY(0);
+        }
+
+        #cutscene-score {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            font-weight: bold;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.9);
+            opacity: 0;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        #cutscene-score.show {
+            opacity: 1;
+        }
+
+        .score-number {
+            transition: all 0.5s ease;
+        }
+
+        .score-separator {
+            color: #fff;
+        }
+
+        /* === TEST MODE INDICATOR === */
+        #test-mode-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 0, 0, 0.7);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            z-index: 1001;
+            display: none;
+        }
+
+        #test-mode-indicator.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <p>Loading Assets...</p>
+        <div class="attributions">
+            <p>"Giant Low Poly Tree" by Sahir Virmani (CC BY 4.0)</p>
+            <p>"LOW POLY - INDUSTRIAL WAREHOUSE" by Colin.Greenall (CC BY 4.0)</p>
+            <p>"Concrete Armored Barrier" by TampaJoey (CC BY 4.0)</p>
+            <p>Explosion animations by elnineo (CC0)</p>
+            <p>Explosion Sound by Ahmed Abdulaal (Pixabay License)</p>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="main-menu">
+        <h1>FUNY TANK GAME</h1>
+        <div class="menu-form">
+            <div class="form-group">
+                <label for="username-input">Username</label>
+                <input type="text" id="username-input" placeholder="3-12 characters (letters/numbers only)" maxlength="12">
+                <div class="error-message" id="username-error"></div>
+            </div>
+            <div class="form-group">
+                <label>Favorite Color</label>
+                <div class="color-selector" id="color-selector">
+                    <!-- Colors will be populated by menu.js -->
+                </div>
+            </div>
+            <div class="menu-buttons">
+                <button class="menu-btn host" id="host-btn" disabled>Host Game</button>
+                <button class="menu-btn join" id="join-btn" disabled>Join Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Mode Selection -->
+    <div id="mode-selection">
+        <div class="mode-content">
+            <h2>Select Game Mode</h2>
+            <div class="mode-buttons">
+                <button class="mode-btn" data-mode="bo3">Best of 3</button>
+                <button class="mode-btn" data-mode="bo5">Best of 5</button>
+                <button class="mode-btn" data-mode="infinite">Infinite Rounds</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen">
+        <div class="lobby-content">
+            <h2 id="lobby-title">Waiting for opponent...</h2>
+            <div id="offer-code-section" style="display: none;">
+                <p>Share this code with your opponent:</p>
+                <div class="code-display" id="offer-code"></div>
+                <button class="lobby-btn" id="copy-offer-btn">Copy Code</button>
+            </div>
+            <div id="answer-input-section" style="display: none;">
+                <p>Enter the Answer Code from your opponent:</p>
+                <input type="text" class="code-input" id="answer-input" placeholder="A1B2C3" maxlength="6">
+                <button class="lobby-btn" id="submit-answer-btn">Submit</button>
+            </div>
+            <div id="join-code-section" style="display: none;">
+                <p>Enter the Host's Offer Code:</p>
+                <input type="text" class="code-input" id="offer-input" placeholder="A1B2C3" maxlength="6">
+                <button class="lobby-btn" id="submit-offer-btn">Connect</button>
+            </div>
+            <div id="answer-code-section" style="display: none;">
+                <p>Share this Answer Code with the host:</p>
+                <div class="code-display" id="answer-code"></div>
+                <button class="lobby-btn" id="copy-answer-btn">Copy Code</button>
+            </div>
+            <div class="lobby-status" id="lobby-status"></div>
+            <button class="lobby-btn secondary" id="cancel-lobby-btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Scoreboard -->
+    <div id="scoreboard">
+        <div class="score-left" id="score-left">Player1: 0</div>
+        <div class="score-right" id="score-right">Player2: 0</div>
+    </div>
+
+    <!-- Win Message -->
+    <div id="win-message"></div>
+
+    <!-- Game UI -->
+    <div id="game-ui">
+        <div id="action-instructions">E to shoot</div>
+        <div id="reload-bar-container" class="bar-container">
+            <div id="reload-bar-fill" class="bar-fill"></div>
+        </div>
+        <div id="health-bar-container" class="bar-container">
+            <div id="health-bar-fill" class="bar-fill"></div>
+        </div>
+    </div>
+    <div id="vignette"></div>
+    <div id="crosshair"></div>
+    <div id="initial-instructions">
+        WASD = Drive | Mouse = Aim | Right Click = Precision Mode
+    </div>
+    <div id="precision-exit-instructions">
+        Esc to exit precision mode
+    </div>
+
+    <!-- Cutscene Overlay -->
+    <div id="cutscene-overlay">
+        <div class="letterbox top"></div>
+        <div class="letterbox bottom"></div>
+        <div id="cutscene-score">
+            <span class="score-number" id="cutscene-score-left">0</span>
+            <span class="score-separator">:</span>
+            <span class="score-number" id="cutscene-score-right">0</span>
+        </div>
+    </div>
+
+    <!-- Test Mode Indicator -->
+    <div id="test-mode-indicator">[TEST MODE]</div>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- Load JS Modules -->
+    <script type="module" src="utils.js"></script>
+    <script type="module" src="menu.js"></script>
+    <script type="module" src="webrtc.js"></script>
+    <script type="module" src="cutscene.js"></script>
+    <script type="module" src="game.js"></script>
+</body>
+</html>
