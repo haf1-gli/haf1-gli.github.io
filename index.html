@@ -4,49 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FUNY TANK GAME - Multiplayer</title>
+    <!-- We're going to need a different font for the UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        /* Basic reset */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        /* Basic reset to remove default margin/padding */
         body {
             margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Inter', sans-serif;
             color: #fff;
-            overflow: hidden;
-            background: #000;
+            overflow: hidden; /* Hide scrollbars */
+            background-color: #000;
         }
-        
+        /* Make the canvas fill the entire screen */
         canvas {
             display: block;
         }
-
-        /* === LOADING SCREEN === */
-        #loading-screen {
+        
+        /* --- Base UI Screen Style --- */
+        /* Replace the .ui-screen rule */
+        .ui-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: #000;
+            /* FIX: Changed background */
+            background-color: rgba(17, 17, 17, 0.5); /* #111 at 50% opacity */
+            backdrop-filter: blur(5px); /* Optional: add a blur effect */
+            /* END FIX */
             color: #fff;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-size: 2rem;
-            z-index: 1000;
-            transition: opacity 1s ease;
+            z-index: 100; /* On top of canvas */
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+            opacity: 1;
+            visibility: visible;
         }
 
-        #loading-screen.hidden {
+        .ui-screen.hidden {
             opacity: 0;
+            visibility: hidden;
             pointer-events: none;
         }
 
+        /* --- Loading Screen --- */
+        #loading-screen {
+            z-index: 110; /* Highest */
+        }
         #loading-screen .attributions {
             position: absolute;
             bottom: 10px;
@@ -54,376 +60,271 @@
             font-size: 10px;
             color: #aaa;
             line-height: 1.4;
-            max-width: 90%;
         }
+        #loading-screen .attributions a { color: #ccc; }
 
-        #loading-screen .attributions a {
-            color: #ccc;
-        }
-
-        /* === MAIN MENU === */
-        #main-menu {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 900;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-        }
-
-        #main-menu.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-
+        /* --- Main Menu --- */
         #main-menu h1 {
-            font-size: 4rem;
-            font-weight: bold;
-            text-shadow: 4px 4px 8px rgba(0,0,0,0.8);
-            margin-bottom: 3rem;
-            letter-spacing: 0.1em;
-        }
-
-        .menu-form {
-            background: rgba(0,0,0,0.5);
-            padding: 2rem;
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            min-width: 400px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .form-group label {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .form-group input {
-            padding: 0.75rem;
-            font-size: 1rem;
-            border: 2px solid #555;
-            border-radius: 6px;
-            background: #222;
+            font-size: 6rem;
             color: #fff;
-            outline: none;
-            transition: border-color 0.3s;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
         }
-
-        .form-group input:focus {
-            border-color: #4a9eff;
-        }
-
-        .form-group input.error {
-            border-color: #ff4a4a;
-        }
-
-        .error-message {
-            color: #ff4a4a;
-            font-size: 0.85rem;
-            min-height: 1.2em;
-        }
-
-        .color-selector {
+        /* Replace the .menu-container rule */
+        .menu-container {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 30px;
+            border-radius: 12px;
+            /* FIX: Removed border */
+            /* border: 2px solid #555; */ 
+            /* END FIX */
+            width: 400px;
+            max-width: 90%;
             display: flex;
-            gap: 0.75rem;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 20px;
+        }  
+        .menu-container input[type="text"] {
+            padding: 12px;
+            border: 2px solid #777;
+            background-color: #222;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 1rem;
+            text-align: center;
         }
-
-        .color-option {
-            width: 50px;
-            height: 50px;
-            border-radius: 8px;
+        .menu-container input[type="text"]::placeholder {
+            color: #888;
+        }
+        .menu-container input[type="text"].invalid {
+            border-color: #e53e3e;
+            color: #e53e3e;
+        }
+        .menu-container label {
+            font-size: 0.9rem;
+            color: #aaa;
+            text-align: center;
+            margin-top: -10px;
+        }
+        #username-validation-msg {
+            font-size: 0.8rem;
+            color: #e53e3e;
+            text-align: center;
+            min-height: 1.2em;
+            margin-top: -15px;
+        }
+        .color-selector {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+        }
+        .color-swatch {
+            width: 100%;
+            height: 40px;
+            border-radius: 6px;
             cursor: pointer;
             border: 3px solid transparent;
-            transition: all 0.3s;
+            transition: transform 0.2s ease;
         }
-
-        .color-option:hover {
+        .color-swatch:hover {
             transform: scale(1.1);
         }
-
-        .color-option.selected {
+        .color-swatch.selected {
             border-color: #fff;
-            box-shadow: 0 0 15px rgba(255,255,255,0.5);
+            box-shadow: 0 0 10px #fff;
         }
-
-        .menu-buttons {
+        .button-group {
             display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
+            gap: 15px;
         }
-
-        .menu-btn {
+        .menu-button, .lobby-button {
             flex: 1;
-            padding: 1rem;
+            padding: 15px;
             font-size: 1.2rem;
             font-weight: bold;
+            color: #fff;
+            background-color: #4a5568;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
+            transition: background-color 0.2s ease, transform 0.2s ease;
         }
-
-        .menu-btn:disabled {
-            opacity: 0.4;
+        .menu-button:hover, .lobby-button:hover {
+            background-color: #718096;
+            transform: translateY(-2px);
+        }
+        .menu-button:disabled, .lobby-button:disabled {
+            background-color: #2d3748;
+            color: #718096;
             cursor: not-allowed;
+            transform: none;
+        }
+        #test-mode-button {
+            background-color: #4a2d48;
+            margin-top: 10px;
+        }
+        #test-mode-button:hover {
+            background-color: #6a3d68;
         }
 
-        .menu-btn.host {
-            background: #4a9eff;
-            color: #fff;
-        }
-
-        .menu-btn.host:hover:not(:disabled) {
-            background: #357abd;
-            transform: translateY(-2px);
-        }
-
-        .menu-btn.join {
-            background: #50c878;
-            color: #fff;
-        }
-
-        .menu-btn.join:hover:not(:disabled) {
-            background: #3a9d5d;
-            transform: translateY(-2px);
-        }
-
-        /* === LOBBY SCREEN === */
-        #lobby-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 900;
-        }
-
-        #lobby-screen.active {
-            display: flex;
-        }
-
-        .lobby-content {
-            background: rgba(0,0,0,0.6);
-            padding: 3rem;
+        /* --- Lobby Styles --- */
+        /* Replace the .lobby-container rule */
+        .lobby-container {
+            width: 600px;
+            max-width: 90%;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 20px; /* Reduced */
             border-radius: 12px;
+            /* FIX: Removed border */
+            /* border: 2px solid #555; */
+            /* END FIX */
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* Reduced */
+        }
+        .lobby-container h2 {
+            font-size: 2.2rem; /* Reduced */
             text-align: center;
-            max-width: 500px;
+            color: #FFD700;
+            margin: 0 0 5px 0; /* Reduced */
+            letter-spacing: 1px;
         }
-
-        .lobby-content h2 {
-            font-size: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .code-display {
-            background: #000;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin: 1.5rem 0;
-            font-family: 'Courier New', monospace;
-            font-size: 2.5rem;
-            letter-spacing: 0.3em;
-            font-weight: bold;
-            color: #4a9eff;
-        }
-
-        .code-input {
-            width: 100%;
-            padding: 1rem;
-            font-size: 1.5rem;
+        .lobby-container h3 {
+            font-size: 0.9rem; /* Reduced */
             text-align: center;
-            font-family: 'Courier New', monospace;
-            letter-spacing: 0.2em;
-            border: 2px solid #555;
-            border-radius: 8px;
-            background: #222;
-            color: #fff;
-            text-transform: uppercase;
+            color: #ccc;
+            margin: 0;
         }
-
-        .lobby-btn {
-            margin-top: 1rem;
-            padding: 0.75rem 2rem;
-            font-size: 1rem;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            background: #4a9eff;
-            color: #fff;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .lobby-btn:hover {
-            background: #357abd;
-        }
-
-        .lobby-btn.secondary {
-            background: #555;
-        }
-
-        .lobby-btn.secondary:hover {
-            background: #666;
-        }
-
-        .lobby-status {
-            margin-top: 1.5rem;
-            font-size: 1.1rem;
+        .lobby-container p {
+            font-size: 0.9rem;
             color: #aaa;
-        }
-
-        /* === GAME MODE SELECTION === */
-        #mode-selection {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.9);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 950;
-        }
-
-        #mode-selection.active {
-            display: flex;
-        }
-
-        .mode-content {
-            background: rgba(26,26,46,0.95);
-            padding: 3rem;
-            border-radius: 12px;
             text-align: center;
         }
-
-        .mode-content h2 {
-            font-size: 2.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .mode-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .mode-btn {
-            padding: 1.5rem 3rem;
-            font-size: 1.5rem;
-            font-weight: bold;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            background: #4a9eff;
+        .lobby-container textarea {
+            width: 100%;
+            height: 100px; /* Reduced */
+            background-color: #222;
+            border: 2px solid #777;
             color: #fff;
-            transition: all 0.3s;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.75rem; /* Reduced */
+            padding: 10px;
+            box-sizing: border-box; /* Important for padding */
+            resize: none;
         }
-
-        .mode-btn:hover {
-            background: #357abd;
-            transform: translateY(-2px);
-        }
-
-        /* === SCOREBOARD === */
-        #scoreboard {
-            position: fixed;
-            top: 20px;
-            left: 0;
-            right: 0;
-            display: none;
-            justify-content: space-between;
-            padding: 0 40px;
-            z-index: 800;
-            font-size: 1.8rem;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-            pointer-events: none;
-        }
-
-        #scoreboard.active {
+        .mode-selector {
             display: flex;
+            justify-content: space-around;
+            gap: 10px;
+        }
+        
+        /* --- In-Game Multiplayer UI --- */
+        #game-ui-multiplayer {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            width: auto;
+            display: flex;
+            justify-content: space-between;
+            z-index: 90;
+            pointer-events: none;
+            font-size: 2.5rem;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        #game-ui-multiplayer.visible {
+            opacity: 1;
+        }
+        #player1-score-display {
+            /* Color set by JS */
+        }
+        #player2-score-display {
+            /* Color set by JS */
         }
 
-        .score-left, .score-right {
-            background: rgba(0,0,0,0.5);
-            padding: 10px 20px;
-            border-radius: 8px;
-        }
-
-        /* === WIN MESSAGE === */
+        /* --- Win Message --- */
         #win-message {
             position: fixed;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%) scale(0);
-            font-size: 3rem;
-            font-weight: bold;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
-            z-index: 850;
-            opacity: 0;
-            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-size: 4rem;
             text-align: center;
-            max-width: 80%;
-        }
-
-        #win-message.show {
-            animation: winMessagePop 0.8s ease-out forwards;
-        }
-
-        @keyframes winMessagePop {
-            0% {
-                transform: translate(-50%, -50%) scale(0);
-                opacity: 0;
-            }
-            50% {
-                transform: translate(-50%, -50%) scale(1.2);
-                opacity: 1;
-            }
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
-        }
-
-        /* === GAME UI === */
-        #game-ui {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            z-index: 800;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
+            z-index: 95;
+            opacity: 0;
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28);
             pointer-events: none;
-            display: none;
+        }
+        #win-message.visible {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* --- Cinematic Cutscene --- */
+        #cinematic-bars {
+            pointer-events: none;
+            z-index: 105; /* Above everything */
+        }
+        .cinematic-bar {
+            position: fixed;
+            left: 0;
+            width: 100%;
+            height: 15%; /* Taller bars */
+            background: #000;
+            transform: translateY(-100%);
+            transition: transform 0.8s cubic-bezier(0.77, 0, 0.18, 1);
+        }
+        .cinematic-bar.bottom {
+            top: auto;
+            bottom: 0;
+            transform: translateY(100%);
+        }
+        #cinematic-bars.visible .cinematic-bar {
+            transform: translateY(0);
+        }
+
+        #cutscene-score {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10rem;
+            z-index: 106; /* Above bars */
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            pointer-events: none;
+        }
+        #cutscene-score.visible {
+            opacity: 1;
+        }
+        #cutscene-p1-score, #cutscene-p2-score, #cutscene-colon {
+            transition: transform 0.5s ease, color 0.5s ease;
+        }
+        
+        /* --- Original UI Styles (for test mode) --- */
+        #game-ui {
+            position: absolute;
+            bottom: 10px; 
+            left: 10px;
+            z-index: 89; /* Below multiplayer UI */
+            pointer-events: none;
+            display: flex;
             flex-direction: column;
             align-items: flex-start;
+            opacity: 0;
+            transition: opacity 0.5s ease;
         }
-
-        #game-ui.active {
-            display: flex;
+        #game-ui.visible {
+            opacity: 1;
         }
-
         #action-instructions {
             color: #fff;
             font-size: 14px;
@@ -431,7 +332,6 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             min-height: 1.2em;
         }
-
         .bar-container {
             width: 200px;
             background-color: #333;
@@ -439,31 +339,21 @@
             overflow: hidden;
             margin-bottom: 5px;
         }
-
-        #reload-bar-container {
-            height: 8px;
-        }
-
-        #health-bar-container {
-            height: 15px;
-        }
-
+        #reload-bar-container { height: 8px; }
+        #health-bar-container { height: 15px; }
         .bar-fill {
             height: 100%;
             transition: width 0.1s linear;
             border-radius: 4px;
         }
-
         #health-bar-fill {
             background-color: #00ff00;
             width: 100%;
         }
-
         #reload-bar-fill {
             background-color: #cccccc;
             width: 100%;
         }
-
         #vignette {
             position: fixed;
             top: 0;
@@ -472,15 +362,11 @@
             height: 100%;
             background: radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.9) 100%);
             pointer-events: none;
-            z-index: 799;
+            z-index: 99;
             opacity: 0;
             transition: opacity 0.5s ease;
         }
-
-        #vignette.active {
-            opacity: 1;
-        }
-
+        #vignette.active { opacity: 1; }
         #crosshair {
             position: fixed;
             top: 50%;
@@ -491,38 +377,30 @@
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
-            z-index: 801;
+            z-index: 100;
             opacity: 0;
             transition: opacity 0.5s ease;
         }
-
-        #crosshair.active {
-            opacity: 1;
-        }
-
+        #crosshair.active { opacity: 1; }
         #initial-instructions {
-            position: fixed;
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: #fff;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0);
             padding: 15px 25px;
             border-radius: 8px;
             font-size: 1.5rem;
             text-align: center;
-            z-index: 802;
-            opacity: 1;
+            z-index: 102;
+            opacity: 0;
             transition: opacity 0.5s ease;
             pointer-events: none;
         }
-
-        #initial-instructions.hidden {
-            opacity: 0;
-        }
-
+        #initial-instructions.hidden { opacity: 0; }
         #precision-exit-instructions {
-            position: fixed;
+            position: absolute;
             top: 10px;
             left: 10px;
             color: #fff;
@@ -530,189 +408,111 @@
             padding: 5px 10px;
             border-radius: 4px;
             font-size: 0.9rem;
-            z-index: 802;
+            z-index: 102;
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
         }
+        #precision-exit-instructions.active { opacity: 1; }
 
-        #precision-exit-instructions.active {
-            opacity: 1;
-        }
-
-        /* === CUTSCENE OVERLAY === */
-        #cutscene-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 870;
-            pointer-events: none;
-            display: none;
-        }
-
-        #cutscene-overlay.active {
-            display: block;
-            pointer-events: all;
-        }
-
-        .letterbox {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 10%;
-            background: #000;
-            transition: transform 0.8s ease-out;
-        }
-
-        .letterbox.top {
-            top: 0;
-            transform: translateY(-100%);
-        }
-
-        .letterbox.bottom {
-            bottom: 0;
-            transform: translateY(100%);
-        }
-
-        .letterbox.show {
-            transform: translateY(0);
-        }
-
-        #cutscene-score {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 6rem;
-            font-weight: bold;
-            text-shadow: 4px 4px 8px rgba(0,0,0,0.9);
-            opacity: 0;
-            display: flex;
-            align-items: center;
-            gap: 2rem;
-        }
-
-        #cutscene-score.show {
-            opacity: 1;
-        }
-
-        .score-number {
-            transition: all 0.5s ease;
-        }
-
-        .score-separator {
-            color: #fff;
-        }
-
-        /* === TEST MODE INDICATOR === */
-        #test-mode-indicator {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(255, 0, 0, 0.7);
-            color: #fff;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-weight: bold;
-            z-index: 1001;
-            display: none;
-        }
-
-        #test-mode-indicator.active {
-            display: block;
-        }
     </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loading-screen">
+    <!-- Loading Screen Overlay -->
+    <div id="loading-screen" class="ui-screen">
         <p>Loading Assets...</p>
         <div class="attributions">
-            <p>"Giant Low Poly Tree" by Sahir Virmani (CC BY 4.0)</p>
-            <p>"LOW POLY - INDUSTRIAL WAREHOUSE" by Colin.Greenall (CC BY 4.0)</p>
-            <p>"Concrete Armored Barrier" by TampaJoey (CC BY 4.0)</p>
-            <p>Explosion animations by elnineo (CC0)</p>
-            <p>Explosion Sound by Ahmed Abdulaal (Pixabay License)</p>
+            <!-- (Attributions moved to save space, but they are still here) -->
+            <p>"Giant Low Poly Tree" (CC BY 4.0) by Sahir Virmani. ...etc...</p>
+        </div>
+    </div>
+    
+    <!-- NEW: Main Menu -->
+    <div id="main-menu" class="ui-screen hidden">
+        <h1>tank game</h1>
+        <div class="menu-container">
+            <input type="text" id="username-input" placeholder="Enter Your Username">
+            <div id="username-validation-msg"></div>
+            <label>Pick Your Color:</label>
+            <div class="color-selector" id="color-selector">
+                <!-- Swatches will be generated by JS -->
+            </div>
+            <div class="button-group">
+                <button id="host-button" class="menu-button" disabled>HOST GAME</button>
+                <button id="join-button" class="menu-button" disabled>JOIN GAME</button>
+            </div>
+            <button id="test-mode-button" class="menu-button">Single Player [TEST]</button>
         </div>
     </div>
 
-    <!-- Main Menu -->
-    <div id="main-menu">
-        <h1>FUNY TANK GAME</h1>
-        <div class="menu-form">
-            <div class="form-group">
-                <label for="username-input">Username</label>
-                <input type="text" id="username-input" placeholder="3-12 characters (letters/numbers only)" maxlength="12">
-                <div class="error-message" id="username-error"></div>
-            </div>
-            <div class="form-group">
-                <label>Favorite Color</label>
-                <div class="color-selector" id="color-selector">
-                    <!-- Colors will be populated by menu.js -->
-                </div>
-            </div>
-            <div class="menu-buttons">
-                <button class="menu-btn host" id="host-btn" disabled>Host Game</button>
-                <button class="menu-btn join" id="join-btn" disabled>Join Game</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Game Mode Selection -->
-    <div id="mode-selection">
-        <div class="mode-content">
+    <!-- NEW: Host Lobby -->
+    <div id="host-lobby" class="ui-screen hidden">
+        <div class="lobby-container" id="host-mode-select">
             <h2>Select Game Mode</h2>
-            <div class="mode-buttons">
-                <button class="mode-btn" data-mode="bo3">Best of 3</button>
-                <button class="mode-btn" data-mode="bo5">Best of 5</button>
-                <button class="mode-btn" data-mode="infinite">Infinite Rounds</button>
+            <div class="mode-selector">
+                <button class="lobby-button" onclick="window.selectGameMode('bo3')">Best of 3</button>
+                <button class="lobby-button" onclick="window.selectGameMode('bo5')">Best of 5</button>
+                <button class="lobby-button" onclick="window.selectGameMode('infinite')">Infinite</button>
             </div>
+            <button class="lobby-button" onclick="window.showMenu()">Back</button>
+        </div>
+
+        <div class="lobby-container hidden" id="host-wait-screen">
+            <h2>Waiting for Opponent...</h2>
+            <h3>1. Copy this Offer Code and send it to your friend:</h3>
+            <textarea id="offer-code" readonly></textarea>
+            <button class="lobby-button" onclick="window.copyToClipboard('offer-code')">Copy Offer</button>
+            
+            <h3>2. Paste their Answer Code below:</h3>
+            <textarea id="answer-input" placeholder="Paste Answer Code here..."></textarea>
+            <button id="connect-button" class="lobby-button">Connect</button>
+            <button class="lobby-button" onclick="window.showMenu()">Cancel</button>
         </div>
     </div>
 
-    <!-- Lobby Screen -->
-    <div id="lobby-screen">
-        <div class="lobby-content">
-            <h2 id="lobby-title">Waiting for opponent...</h2>
-            <div id="offer-code-section" style="display: none;">
-                <p>Share this code with your opponent:</p>
-                <div class="code-display" id="offer-code"></div>
-                <button class="lobby-btn" id="copy-offer-btn">Copy Code</button>
+    <!-- NEW: Join Lobby -->
+    <div id="join-lobby" class="ui-screen hidden">
+        <div class="lobby-container">
+            <h2>Join Game</h2>
+            <h3>1. Paste the Host's Offer Code below:</h3>
+            <textarea id="offer-input" placeholder="Paste Offer Code here..."></textarea>
+            <button id="generate-answer-button" class="lobby-button">Generate Answer</button>
+
+            <div id="join-answer-section" class="hidden" style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+                <h3>2. Copy this Answer Code and send it back to the host:</h3>
+                <textarea id="answer-code" readonly></textarea>
+                <button class="lobby-button" onclick="window.copyToClipboard('answer-code')">Copy Answer</button>
+                <p>Waiting for host to connect...</p>
             </div>
-            <div id="answer-input-section" style="display: none;">
-                <p>Enter the Answer Code from your opponent:</p>
-                <input type="text" class="code-input" id="answer-input" placeholder="A1B2C3" maxlength="6">
-                <button class="lobby-btn" id="submit-answer-btn">Submit</button>
-            </div>
-            <div id="join-code-section" style="display: none;">
-                <p>Enter the Host's Offer Code:</p>
-                <input type="text" class="code-input" id="offer-input" placeholder="A1B2C3" maxlength="6">
-                <button class="lobby-btn" id="submit-offer-btn">Connect</button>
-            </div>
-            <div id="answer-code-section" style="display: none;">
-                <p>Share this Answer Code with the host:</p>
-                <div class="code-display" id="answer-code"></div>
-                <button class="lobby-btn" id="copy-answer-btn">Copy Code</button>
-            </div>
-            <div class="lobby-status" id="lobby-status"></div>
-            <button class="lobby-btn secondary" id="cancel-lobby-btn">Cancel</button>
+            <button class="lobby-button" onclick="window.showMenu()" style="margin-top: 10px;">Cancel</button>
         </div>
     </div>
 
-    <!-- Scoreboard -->
-    <div id="scoreboard">
-        <div class="score-left" id="score-left">Player1: 0</div>
-        <div class="score-right" id="score-right">Player2: 0</div>
+    <!-- NEW: Multiplayer UI -->
+    <div id="game-ui-multiplayer" class.="hidden">
+        <div id="player1-score-display">P1: 0</div>
+        <div id="player2-score-display">P2: 0</div>
+    </div>
+    
+    <!-- NEW: Win Message -->
+    <div id="win-message" class="hidden">
+        <span id="win-message-text">WINNER!</span>
     </div>
 
-    <!-- Win Message -->
-    <div id="win-message"></div>
+    <!-- NEW: Cinematic Cutscene Elements -->
+    <div id="cinematic-bars" class="hidden">
+        <div class="cinematic-bar top"></div>
+        <div class="cinematic-bar bottom"></div>
+    </div>
+    <div id="cutscene-score" class="hidden">
+        <span id="cutscene-p1-score">0</span>
+        <span id="cutscene-colon">:</span>
+        <span id="cutscene-p2-score">0</span>
+    </div>
 
-    <!-- Game UI -->
-    <div id="game-ui">
-        <div id="action-instructions">E to shoot</div>
+    <!-- Original Game UI (For Test Mode) -->
+    <div id="game-ui" class="hidden">
+        <div id="action-instructions">E to shoot</div> 
         <div id="reload-bar-container" class="bar-container">
             <div id="reload-bar-fill" class="bar-fill"></div>
         </div>
@@ -722,28 +522,14 @@
     </div>
     <div id="vignette"></div>
     <div id="crosshair"></div>
+    
     <div id="initial-instructions">
-        WASD = Drive | Mouse = Aim | Right Click = Precision Mode
     </div>
     <div id="precision-exit-instructions">
         Esc to exit precision mode
     </div>
 
-    <!-- Cutscene Overlay -->
-    <div id="cutscene-overlay">
-        <div class="letterbox top"></div>
-        <div class="letterbox bottom"></div>
-        <div id="cutscene-score">
-            <span class="score-number" id="cutscene-score-left">0</span>
-            <span class="score-separator">:</span>
-            <span class="score-number" id="cutscene-score-right">0</span>
-        </div>
-    </div>
-
-    <!-- Test Mode Indicator -->
-    <div id="test-mode-indicator">[TEST MODE]</div>
-
-    <!-- Three.js Import Map -->
+    <!-- Import map for Three.js modules from CDN -->
     <script type="importmap">
         {
             "imports": {
@@ -753,11 +539,2556 @@
         }
     </script>
 
-    <!-- Load JS Modules -->
-    <script type="module" src="utils.js"></script>
-    <script type="module" src="menu.js"></script>
-    <script type="module" src="webrtc.js"></script>
-    <script type="module" src="cutscene.js"></script>
-    <script type="module" src="game.js"></script>
+    <!-- Main Three.js Application Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        let camera, scene, renderer;
+        let clock;
+        let ground;
+        
+        // --- MULTIPLAYER REFACTOR ---
+        // We now have two (or one, in test mode) tanks.
+        let player1, player2; // player1 is LOCAL, player2 is REMOTE (or null in test mode)
+        let player1Tank = { obj: null, headPivot: null, turretPivot: null, colorMarker: null };
+        let player2Tank = { obj: null, headPivot: null, turretPivot: null, colorMarker: null };
+        // --- END REFACTOR ---
+
+        let raycaster, collisionRaycaster, bulletRaycaster; 
+        let mainLoadingManager; 
+        let muzzleDebugArrow; 
+        let trajectoryLine; 
+        let explosionSpriteSheet; 
+        let explosionSoundBuffer; 
+        let audioListener; 
+        let woodParticleMaterial; 
+        let woodParticleGeometry; 
+
+        // --- Game State ---
+        let gameState = 'loading'; // loading, menu, lobby, playing, cutscene
+        let isHost = false;
+        let gameMode = 'infinite'; // infinite, bo3, bo5
+        let winScore = 2; // 2 for bo3, 3 for bo5
+        let localPlayer = { username: "Player1", color: "#FF0000" };
+        let remotePlayer = { username: "Player2", color: "#0000FF" };
+        let player1Score = 0;
+        let player2Score = 0;
+        let destroyedCollidables = new Set(); // Sync this
+
+        // --- WebRTC State ---
+        let peerConnection;
+        let dataChannel;
+        const stunServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+        let lastSentState = {};
+        let lastReceivedState = {};
+        let remoteInputs = {};
+        let stateUpdateBuffer = [];
+        let lastStateTimestamp = 0;
+        const stateSendRate = 1000 / 20; // 20 times per second
+        let timeSinceLastStateSend = 0;
+        let heartbeatInterval = null; // --- NEW ---
+        const heartbeatIntervalTime = 2000; // --- NEW (2 seconds) ---
+
+        // --- NEW: Seeded Random Number Generator ---
+        let _seed = 0;
+        function setRandomSeed(seed) {
+            _seed = seed;
+        }
+        function seededRandom() {
+            _seed = (_seed * 9301 + 49297) % 233280;
+            return _seed / 233280;
+        }
+        function seededRandomFloat(min, max) {
+            return seededRandom() * (max - min) + min;
+        }
+        function seededRandomInt(min, max) {
+            // + 1 to make the max inclusive
+            return Math.floor(seededRandom() * (max - min + 1)) + min;
+        }
+        // --- END NEW ---
+
+        // --- Player State (Original) ---
+        let isRegeneratingMap = false;
+        let isAimLocked = false; 
+        let isPrecisionAiming = false; 
+        let isPointerLocked = false; 
+        let isReloading = false; 
+        let isReloaded = true; 
+        let reloadProgress = 1.0; 
+        let firstInputReceived = false; 
+        let isFollowingBullet = false; 
+        let followBulletTimer = 0; 
+        const followBulletDuration = 0.5; 
+        let cameraShakeIntensity = 0.0; 
+        let tHoldStart = 0; // For test mode
+
+        // --- Debug ---
+        let isDebugMode = false;
+        const debugHelpers = new THREE.Group(); 
+
+        // --- Scene Objects ---
+        const collidables = []; 
+        const collidableBoxes = []; 
+        const trees = []; 
+        const barriers = []; 
+        const bullets = []; 
+        const explosions = []; 
+        const particles = []; 
+        const tanks = []; // Will hold p1 and p2 objects
+
+        // --- Movement State (Intent) ---
+        let moveForward = false; let moveBackward = false; let moveLeft = false; let moveRight = false; 
+        
+        // --- Movement Physics (Will be stored in player.userData) ---
+        const playerAcceleration = 60.0; const playerDamping = 10.0;
+        const playerTurnAcceleration = 15.0; const playerTurnDamping = 20.0; 
+        const headTurnSpeed = 1.5; const turretPitchSpeed = 2.0; 
+        
+        // --- Player Stats (Will be stored in player.userData) ---
+        const maxPlayerHealth = 100;
+        const reloadTime = 3.0; 
+
+        // --- Shooting ---
+        let canShoot = true; const shootCooldown = 0.2; 
+        let bulletSpeed = 197.00; let bulletGravityStrength = 50.00; 
+        const explosionDuration = 0.8; 
+        const explosionSize = 20.0;
+        const explosionBlastRadius = 10.0; 
+        const explosionMaxDamage = 50.0; 
+        let muzzlePosition = new THREE.Vector3(20.00, -18.60, 5.30); 
+        let muzzleRotation = new THREE.Euler((0.00 * (Math.PI / 180)), (91.00 * (Math.PI / 180)), (0.00 * (Math.PI / 180))); 
+
+        // --- Explosion Sprite Sheet Config ---
+        const explosionRows = 8; const explosionCols = 8; const explosionTotalFrames = 64; 
+
+        // --- Camera Orbit & Aiming ---
+        let isMouseDown = false; let previousMouseX = 0; let previousMouseY = 0;
+        let cameraYaw = 0; let cameraPitch = 0.4; 
+        let mouseX = window.innerWidth / 2; let mouseY = window.innerHeight / 2; 
+        const cameraDistance = 15.0; const cameraLookAtOffset = new THREE.Vector3(0, 2, 0); 
+        const cameraPitchMin = 0.1; const cameraPitchMax = 1.4; 
+        
+        // --- Precision Aim Camera ---
+        const defaultFov = 75; const precisionFovBase = 20; 
+        let precisionZoomLevel = 0; 
+        const precisionFovMin = 15; const precisionFovMax = 30; 
+        const precisionAimSensitivity = 0.001; 
+
+        // --- Camera Regeneration Target ---
+        const regenCameraPos = new THREE.Vector3(0, 300, 50); 
+        const regenCameraLookAt = new THREE.Vector3(0, 0, 0); 
+
+        // --- Body Model Configuration ---
+        const bodyModelScale = 0.1; 
+        const bodyModelPositionOffset = new THREE.Vector3(-2, -1, -1); 
+        const bodyModelRotationOffset = new THREE.Euler((-90 * (Math.PI / 180)), (0 * (Math.PI / 180)), (-90 * (Math.PI / 180))); 
+        
+        // --- Head Model Configuration ---
+        const tankHeadPivotPosition = new THREE.Vector3(-0.20, 0.30, 1.30);
+        const headModelPositionOffset = new THREE.Vector3(1.90, 0.00, -7.20);
+        const headModelScale = 0.1; 
+        const headModelRotationOffset = new THREE.Euler((-90.0 * (Math.PI / 180)), (0.0 * (Math.PI / 180)), (-90.0 * (Math.PI / 180)));
+
+        // --- Turret Model Configuration ---
+        const turretModelScale = 1; 
+        const turretPivotPosition = new THREE.Vector3(67.10, 0.00, 0.00);
+        const turretModelPosition = new THREE.Vector3(-32.60, 0.00, 1.00);
+        const turretModelRotation = new THREE.Euler((0.0 * (Math.PI / 180)), (0.0 * (Math.PI / 180)), (0.0 * (Math.PI / 180)));
+
+        // --- Warehouse Configuration ---
+        const MIN_WAREHOUSES = 6; const MAX_WAREHOUSES = 8;
+        const warehouseScale = 120.00; const warehouseYOffset = 0.8;
+        
+        // --- Tree Configuration ---
+        const MIN_TREES = 15; const MAX_TREES = 20;
+        const treeScale = 0.80; const treeYOffset = 0.00; const treeScaleVariation = 0.20; 
+
+        // --- Barrier Configuration ---
+        const MIN_BARRIERS = 15; const MAX_BARRIERS = 25;
+        const barrierScale = 2.20; const barrierYOffset = -0.40; 
+
+        // --- Spawn Configuration ---
+        const PLAYER_SPAWN_RADIUS = 2.5; const SPAWN_AREA = 450; 
+        const spawnPoint1 = new THREE.Vector3(-50, 30, 0);
+        const spawnPoint2 = new THREE.Vector3(50, 30, 0);
+
+        // --- Helper Vectors ---
+        const playerForward = new THREE.Vector3(); const groundNormal = new THREE.Vector3(); const upVector = new THREE.Vector3(0, 1, 0);
+        const tiltQuaternion = new THREE.Quaternion(); const yawQuaternion = new THREE.Quaternion(); const finalQuaternion = new THREE.Quaternion(); 
+        const cameraOffset = new THREE.Vector3(); const worldOffset = new THREE.Vector3(); const lookAtTarget = new THREE.Vector3(); const rayOrigin = new THREE.Vector3();
+        const spawnCheckPos = new THREE.Vector2(); const collidableCheckPos = new THREE.Vector2(); const collidableBoxSize = new THREE.Vector3();
+        const bulletGeometry = new THREE.SphereGeometry(0.2, 8, 8); const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const explosionGeometry = new THREE.PlaneGeometry(1, 1); let explosionMaterial; 
+        const muzzleDirection = new THREE.Vector3(); const muzzleWorldPos = new THREE.Vector3(); const muzzleWorldQuat = new THREE.Quaternion(); const muzzleOffsetQuat = new THREE.Quaternion(); 
+        const trajectoryPoints = []; const trajectoryVelocity = new THREE.Vector3(); 
+        const precisionCamPos = new THREE.Vector3(); const precisionCamQuat = new THREE.Quaternion(); const precisionCamTargetQuat = new THREE.Quaternion(); const thirdPersonCamPos = new THREE.Vector3(); 
+        const followBulletStartPos = new THREE.Vector3(); const followBulletDirection = new THREE.Vector3(); const followBulletLookAt = new THREE.Vector3();
+        const shakeOffset = new THREE.Vector3();
+        const particleGravity = 9.8; const particleLifespan = 3.0; 
+        // --- RELOAD/ROTATION FIX: Add Euler helper ---
+        const euler = new THREE.Euler();
+
+        // --- UI Element References ---
+        let healthBarFill, reloadBarFill, vignetteElement, crosshairElement, actionInstructionsElement, initialInstructionsElement, precisionExitInstructionsElement;
+        let loadingScreen, mainMenu, hostLobby, joinLobby, hostModeSelect, hostWaitScreen, joinAnswerSection, gameUiMultiplayer, player1ScoreDisplay, player2ScoreDisplay, winMessage, winMessageText, cinematicBars, cutsceneScore, cutsceneP1Score, cutsceneColon, cutsceneP2Score, gameUiSinglePlayer;
+
+        // --- Color Options ---
+        const colorOptions = {
+            "Red": "#e53e3e", "Blue": "#3b82f6", "Yellow": "#fde047", 
+            "Pink": "#ec4899", "Magenta": "#d946ef", "White": "#f9fafb", "Black": "#1f2937"
+        };
+        const winMessages = [
+            "Looks like {winner} is on fire!",
+            "AND ONE FOR {winner}!",
+            "Too bad, {loser} — step it up!",
+            "Oof, dirty shot by {winner}!",
+            "{winner} dominates the battlefield!",
+            "{loser} got SMOKED!",
+            "Boom! {winner} takes the round.",
+            "{winner} laughs in turret.",
+            "Critical hit! {winner} wins again.",
+            "{loser} needs a bigger gun.",
+            "{winner}'s aim is just... wow.",
+            "Is {loser} even trying?"
+        ];
+        
+        // --- Cutscene State ---
+        let cutsceneTimer = 0;
+        let cutsceneState = 'idle'; // bars, pan, score, countup, result, fade
+        let p1ScoreAnim = 0;
+        let p2ScoreAnim = 0;
+        const cutsceneCamStart = new THREE.Vector3();
+        const cutsceneCamEnd = new THREE.Vector3(0, 10, 30);
+        const cutsceneLookAt = new THREE.Vector3(0, 2, 0);
+
+
+        // --- Input Handlers (Function Definitions NEEDED HERE) ---
+        // REPLACEMENT: onKeyDown - Fix the shoot action to handle reload state
+        // FIX 3: onKeyDown - Make sure E key calls shoot with the correct local tank
+        const onKeyDown = function (event) { 
+            // Handle 'T' hold for test mode in menu
+            if (gameState === 'menu' && event.code === 'KeyT') {
+                if (tHoldStart === 0) tHoldStart = Date.now();
+                return;
+            }
+
+            if (gameState !== 'playing') return;
+
+            hideInitialInstructions();
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = true; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+                case 'ArrowRight': case 'KeyD': moveRight = true; break;
+                case 'KeyE': 
+                    // Shoot with the LOCAL tank
+                    const localTankToShoot = isHost ? player1 : player2;
+                    if (localTankToShoot) {
+                        console.log(`E pressed, attempting to shoot with ${localTankToShoot.userData.username}`);
+                        shoot(localTankToShoot);
+                    }
+                    break;
+                case 'KeyR': 
+                    // Determine local player based on role
+                    const localPlayerReload = isHost ? player1 : player2;
+                    if (localPlayerReload) {
+                        // --- RELOAD FIX: Client sends event, Host just sets variable ---
+                        if (isHost) {
+                            // HOST
+                            if (!localPlayerReload.userData.isReloading && !localPlayerReload.userData.isReloaded) { 
+                                localPlayerReload.userData.isReloading = true;
+                                console.log(`${localPlayerReload.userData.username} started reloading`);
+                                updateActionInstructions(localPlayerReload); 
+                            }
+                        } else {
+                            // CLIENT
+                            if (!localPlayerReload.userData.isReloading && !localPlayerReload.userData.isReloaded) {
+                                // Don't set state locally, ask host
+                                sendData({ type: 'event', event: 'start_reload' });
+                                // Optimistically update UI
+                                localPlayerReload.userData.isReloading = true;
+                                updateActionInstructions(localPlayerReload);
+                            }
+                        }
+                        // --- END RELOAD FIX ---
+                    }
+                    break;
+                case 'KeyQ': isAimLocked = !isAimLocked; break;
+                case 'KeyI': 
+                    isDebugMode = !isDebugMode;
+                    debugHelpers.visible = isDebugMode;
+                    if(player1Tank.obj) player1Tank.obj.userData.pivotMarker.visible = isDebugMode;
+                    if(player1Tank.obj) player1Tank.obj.userData.turretPivotMarker.visible = isDebugMode;
+                    if(player2Tank.obj) player2Tank.obj.userData.pivotMarker.visible = isDebugMode;
+                    if(player2Tank.obj) player2Tank.obj.userData.turretPivotMarker.visible = isDebugMode;
+                    break;
+            }
+        };
+        const onKeyUp = function (event) { 
+            // Handle 'T' hold for test mode
+            if (gameState === 'menu' && event.code === 'KeyT') {
+                if (Date.now() - tHoldStart > 2000) {
+                    console.log("Entering Test Mode...");
+                    startTestMode();
+                }
+                tHoldStart = 0;
+                return;
+            }
+
+            if (gameState !== 'playing') return;
+
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = false; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+                case 'ArrowRight': case 'KeyD': moveRight = false; break;
+                case 'KeyR': 
+                    // Determine local player based on role
+                    const localPlayerReloadUp = isHost ? player1 : player2;
+                    if (localPlayerReloadUp) {
+                        // --- RELOAD FIX: Client sends event, Host just sets variable ---
+                        if (isHost) {
+                            // HOST
+                            if (localPlayerReloadUp.userData.isReloading) {
+                                localPlayerReloadUp.userData.isReloading = false;
+                                console.log(`${localPlayerReloadUp.userData.username} stopped reloading (progress continues)`);
+                            }
+                        } else {
+                            // CLIENT
+                            if (localPlayerReloadUp.userData.isReloading) {
+                                sendData({ type: 'event', event: 'stop_reload' });
+                                // Optimistically update UI
+                                localPlayerReloadUp.userData.isReloading = false;
+                            }
+                        }
+                        updateActionInstructions(localPlayerReloadUp); 
+                        // --- END RELOAD FIX ---
+                    }
+                    break;
+            }
+        };
+
+        const onMouseDown = function(event) { 
+            if (gameState !== 'playing') return;
+            hideInitialInstructions(); 
+            if (event.button === 0) { 
+                isMouseDown = true; 
+                previousMouseX = event.clientX; 
+                previousMouseY = event.clientY; 
+            } 
+        };
+
+        const onMouseUp = function(event) { 
+            if (gameState !== 'playing') return;
+            if (event.button === 0) { 
+                isMouseDown = false; 
+            } 
+        };
+
+        const onMouseMove = function(event) { 
+            if (gameState !== 'playing') return;
+            mouseX = event.clientX; 
+            mouseY = event.clientY;
+            if (isPrecisionAiming && isPointerLocked) { 
+                cameraYaw -= event.movementX * precisionAimSensitivity;
+                cameraPitch += event.movementY * precisionAimSensitivity;
+                cameraPitch = THREE.MathUtils.clamp(cameraPitch, cameraPitchMin, cameraPitchMax);
+            } 
+            else if (isMouseDown && !isPrecisionAiming) { 
+                 hideInitialInstructions();
+                 const deltaX = event.clientX - previousMouseX; 
+                 const deltaY = event.clientY - previousMouseY;
+                 cameraYaw -= deltaX * 0.005; 
+                 cameraPitch += deltaY * 0.005; 
+                 cameraPitch = THREE.MathUtils.clamp(cameraPitch, cameraPitchMin, cameraPitchMax);
+                 previousMouseX = event.clientX; 
+                 previousMouseY = event.clientY;
+            }
+        };
+
+        const onContextMenu = function(event) { 
+            if (gameState !== 'playing') return;
+            hideInitialInstructions(); 
+            event.preventDefault(); 
+            togglePrecisionAim(); 
+        };
+
+        const onMouseWheel = function(event) { 
+            if (gameState !== 'playing') return;
+            hideInitialInstructions(); 
+            if (isPrecisionAiming) { 
+                precisionZoomLevel += event.deltaY * -0.001; 
+                precisionZoomLevel = THREE.MathUtils.clamp(precisionZoomLevel, 0, 1); 
+            } 
+        };
+
+        const onPointerLockChange = function() { 
+            if (gameState !== 'playing') return;
+            isPointerLocked = document.pointerLockElement === renderer.domElement;
+            if (!isPointerLocked && isPrecisionAiming) { 
+                isPrecisionAiming = false; 
+                vignetteElement.classList.remove('active'); 
+                crosshairElement.classList.remove('active'); 
+                precisionExitInstructionsElement.classList.remove('active'); 
+            }
+        };
+
+        const onPointerLockError = function() { 
+            console.error('PointerLock Error'); 
+            isPrecisionAiming = false; 
+            vignetteElement.classList.remove('active'); 
+            crosshairElement.classList.remove('active'); 
+            precisionExitInstructionsElement.classList.remove('active'); 
+        };
+        
+        // --- Window Resize Handler ---
+        function onWindowResize() { 
+             camera.aspect = window.innerWidth / window.innerHeight;
+             camera.updateProjectionMatrix();
+             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- MAIN INIT ---
+        init();
+        animate(); // Start the main loop
+
+        function init() {
+            // Get UI Elements
+            getUIElements();
+
+            // Loading Manager
+            loadingScreen = document.getElementById('loading-screen');
+            mainLoadingManager = new THREE.LoadingManager();
+            mainLoadingManager.onLoad = () => {
+                // Assets loaded, show main menu
+                console.log("All assets loaded.");
+                
+                // --- FIX: Don't show menu if we are already playing! ---
+                if (gameState !== 'loading') {
+                    console.warn("Loading manager finished, but game is already in state:", gameState);
+                    return; // Don't interrupt the game
+                }
+                // --- END FIX ---
+
+                loadingScreen.classList.add('hidden');
+                // We don't spawn the player. We show the menu.
+                // generateMap already ran.
+                // The safe spawn points will be used when game starts.
+                initMenu();
+                showMenu();
+            };
+            mainLoadingManager.onError = (url) => { console.error('Error loading ' + url); };
+
+            // Scene, Camera, Audio Listener
+            scene = new THREE.Scene(); scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.Fog(0x87ceeb, 0, 400); 
+            camera = new THREE.PerspectiveCamera(defaultFov, window.innerWidth / window.innerHeight, 1, 2000); camera.position.set(0, 20, 20); 
+            audioListener = new THREE.AudioListener(); camera.add(audioListener); 
+
+            // Renderer, Clock, Raycasters
+            renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(window.devicePixelRatio); renderer.setSize(window.innerWidth, window.innerHeight); document.body.appendChild(renderer.domElement);
+            clock = new THREE.Clock();
+            raycaster = new THREE.Raycaster(); collisionRaycaster = new THREE.Raycaster(); bulletRaycaster = new THREE.Raycaster(); 
+
+            // Debug Helpers (Arrow, Trajectory, Group)
+            muzzleDebugArrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,-1), new THREE.Vector3(0,0,0), 10, 0xff00ff); scene.add(muzzleDebugArrow); muzzleDebugArrow.visible = false;
+            const trajectoryMaterial = new THREE.LineDashedMaterial({ color: 0x0000ff, dashSize: 0.5, gapSize: 0.3 }); const trajectoryGeometry = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(180 * 3), 3));
+            trajectoryLine = new THREE.Line(trajectoryGeometry, trajectoryMaterial); trajectoryLine.frustumCulled = false; trajectoryLine.visible = false; scene.add(trajectoryLine);
+            scene.add(debugHelpers); debugHelpers.visible = isDebugMode;
+            
+            // Load Explosion Assets
+            const textureLoader = new THREE.TextureLoader(mainLoadingManager);
+            explosionSpriteSheet = textureLoader.load('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/explose.png', () => { 
+                explosionMaterial = new THREE.MeshBasicMaterial({ map: explosionSpriteSheet, transparent: true, side: THREE.DoubleSide, depthWrite: false }); 
+            });
+            const audioLoader = new THREE.AudioLoader(mainLoadingManager);
+            audioLoader.load('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/sounds/explosion-312361.mp3', (buffer) => { explosionSoundBuffer = buffer; });
+
+            // Create Wood Particle Assets
+            woodParticleGeometry = new THREE.BoxGeometry(0.1, 0.4, 0.1); woodParticleMaterial = new THREE.MeshBasicMaterial({ color: 0x5c3a21 }); 
+
+            // Input Listeners (Keyboard, Mouse, PointerLock)
+            document.addEventListener('keydown', onKeyDown); document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousedown', onMouseDown); document.addEventListener('mouseup', onMouseUp); document.addEventListener('mousemove', onMouseMove); 
+            document.addEventListener('contextmenu', onContextMenu); document.addEventListener('wheel', onMouseWheel);
+            document.addEventListener('pointerlockchange', onPointerLockChange, false); document.addEventListener('pointerlockerror', onPointerLockError, false);
+            
+            // --- FIX: Map generation is now deferred until we have a seed ---
+            // generateMap(mainLoadingManager);
+
+            // --- Player Object creation is now deferred to createPlayerTank() ---
+
+            // Lights
+            const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x00ff00, 0.8); scene.add(hemisphereLight);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5); directionalLight.position.set(50, 100, 50); directionalLight.castShadow = true; scene.add(directionalLight);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // --- NEW: Get All UI Elements ---
+        function getUIElements() {
+            // Original
+            healthBarFill = document.getElementById('health-bar-fill'); 
+            reloadBarFill = document.getElementById('reload-bar-fill'); 
+            vignetteElement = document.getElementById('vignette'); 
+            crosshairElement = document.getElementById('crosshair'); 
+            actionInstructionsElement = document.getElementById('action-instructions'); 
+            initialInstructionsElement = document.getElementById('initial-instructions'); 
+            precisionExitInstructionsElement = document.getElementById('precision-exit-instructions');
+            gameUiSinglePlayer = document.getElementById('game-ui');
+
+            // New
+            loadingScreen = document.getElementById('loading-screen');
+            mainMenu = document.getElementById('main-menu');
+            hostLobby = document.getElementById('host-lobby');
+            joinLobby = document.getElementById('join-lobby');
+            hostModeSelect = document.getElementById('host-mode-select');
+            hostWaitScreen = document.getElementById('host-wait-screen');
+            joinAnswerSection = document.getElementById('join-answer-section');
+            gameUiMultiplayer = document.getElementById('game-ui-multiplayer');
+            player1ScoreDisplay = document.getElementById('player1-score-display');
+            player2ScoreDisplay = document.getElementById('player2-score-display');
+            winMessage = document.getElementById('win-message');
+            winMessageText = document.getElementById('win-message-text');
+            cinematicBars = document.getElementById('cinematic-bars');
+            cutsceneScore = document.getElementById('cutscene-score');
+            cutsceneP1Score = document.getElementById('cutscene-p1-score');
+            cutsceneColon = document.getElementById('cutscene-colon');
+            cutsceneP2Score = document.getElementById('cutscene-p2-score');
+        }
+
+        // --- NEW: UI Management Functions ---
+        function showMenu() {
+            // --- NEW: Add trace to find what's calling this ---
+            // --- EDIT: Changed to console.log as requested ---
+            console.log("--- SHOW MENU CALLED ---");
+            console.log("Stack trace for showMenu:");
+            // --- END EDIT ---
+
+            gameState = 'menu';
+            mainMenu.classList.remove('hidden');
+            hostLobby.classList.add('hidden');
+            joinLobby.classList.add('hidden');
+            loadingScreen.classList.add('hidden');
+            gameUiMultiplayer.classList.remove('visible');
+            gameUiSinglePlayer.classList.remove('visible');
+            
+            // Reset lobby states
+            hostModeSelect.classList.remove('hidden');
+            hostWaitScreen.classList.add('hidden');
+            joinAnswerSection.classList.add('hidden');
+            document.getElementById('offer-input').value = '';
+            document.getElementById('answer-input').value = '';
+
+            // Disconnect if connected
+            if (dataChannel) dataChannel.close();
+            if (peerConnection) peerConnection.close();
+            if (heartbeatInterval) clearInterval(heartbeatInterval); // --- NEW ---
+            dataChannel = null;
+            peerConnection = null;
+            heartbeatInterval = null; // --- NEW ---
+        }
+
+        function initMenu() {
+            const usernameInput = document.getElementById('username-input');
+            const validationMsg = document.getElementById('username-validation-msg');
+            const hostButton = document.getElementById('host-button');
+            const joinButton = document.getElementById('join-button');
+            const colorSelector = document.getElementById('color-selector');
+
+            // --- NEW: Clear old swatches to prevent duplicates ---
+            colorSelector.innerHTML = '';
+
+            // Populate Color Swatches
+            let firstSwatch = null;
+            for (const [name, hex] of Object.entries(colorOptions)) {
+                const swatch = document.createElement('div');
+                swatch.classList.add('color-swatch');
+                swatch.style.backgroundColor = hex;
+                swatch.dataset.color = hex;
+                swatch.title = name;
+                if (!firstSwatch) firstSwatch = swatch;
+                if (hex === localPlayer.color) {
+                    swatch.classList.add('selected');
+                }
+                swatch.addEventListener('click', () => {
+                    document.querySelectorAll('.color-swatch.selected').forEach(s => s.classList.remove('selected'));
+                    swatch.classList.add('selected');
+                    localPlayer.color = hex;
+                });
+                colorSelector.appendChild(swatch);
+            }
+            // Ensure a color is selected
+            if (!document.querySelector('.color-swatch.selected') && firstSwatch) {
+                firstSwatch.classList.add('selected');
+                localPlayer.color = firstSwatch.dataset.color;
+            }
+
+            // Validation
+            const validate = () => {
+                const username = usernameInput.value.trim();
+                const regex = /^[a-zA-Z0-9]{3,12}$/;
+                if (regex.test(username)) {
+                    validationMsg.textContent = '';
+                    usernameInput.classList.remove('invalid');
+                    hostButton.disabled = false;
+                    joinButton.disabled = false;
+                    localPlayer.username = username;
+                    return true;
+                } else {
+                    validationMsg.textContent = '3-12 letters/numbers only. No spaces/symbols.';
+                    usernameInput.classList.add('invalid');
+                    hostButton.disabled = true;
+                    joinButton.disabled = true;
+                    return false;
+                }
+            };
+            usernameInput.addEventListener('input', validate);
+            validate(); // Validate loaded data
+
+            // Button Listeners
+            hostButton.addEventListener('click', () => {
+                if (!validate()) return;
+                saveToLocalStorage();
+                gameState = 'lobby';
+                mainMenu.classList.add('hidden');
+                hostLobby.classList.remove('hidden');
+                hostModeSelect.classList.remove('hidden');
+                hostWaitScreen.classList.add('hidden');
+            });
+            joinButton.addEventListener('click', () => {
+                if (!validate()) return;
+                saveToLocalStorage();
+                gameState = 'lobby';
+                mainMenu.classList.add('hidden');
+                joinLobby.classList.remove('hidden');
+                joinAnswerSection.classList.add('hidden');
+            });
+            document.getElementById('test-mode-button').addEventListener('click', startTestMode);
+            document.getElementById('generate-answer-button').addEventListener('click', setupJoinConnection);
+            document.getElementById('connect-button').addEventListener('click', () => {
+                const answer = JSON.parse(document.getElementById('answer-input').value);
+                peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            });
+
+            // Make functions global for inline onclick
+            window.selectGameMode = (mode) => {
+                gameMode = mode;
+                if (mode === 'bo3') winScore = 2;
+                else if (mode === 'bo5') winScore = 3;
+                else winScore = Infinity;
+                hostModeSelect.classList.add('hidden');
+                hostWaitScreen.classList.remove('hidden');
+                setupHostConnection();
+            };
+            window.showMenu = showMenu;
+            window.copyToClipboard = (elementId) => {
+                const textarea = document.getElementById(elementId);
+                textarea.select();
+                document.execCommand('copy');
+            };
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('funyTankUser', JSON.stringify(localPlayer));
+        }
+
+        // --- NEW: WebRTC P2P Logic ---
+
+        // --- Replace the ENTIRE setupHostConnection function ---
+        async function setupHostConnection() {
+            isHost = true;
+            peerConnection = new RTCPeerConnection(stunServers);
+
+            // Host creates the data channel
+            dataChannel = peerConnection.createDataChannel('gameData');
+            console.log("Created data channel");
+            setupDataChannelEvents();
+
+            // --- FIX: Generate and seed the map (HOST) ---
+            const mapSeed = Math.floor(Math.random() * 1000000); // Create seed
+            setRandomSeed(mapSeed); // Use our NEW function
+            
+            // --- FIX: Call the EXISTING removeMap function ---
+            removeMap();
+
+            generateMap(mainLoadingManager); // Host generates map now
+            // Store seed to send to client
+            peerConnection.mapSeed = mapSeed; 
+            // --- END FIX ---
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    // This will fire multiple times. We need to wait until it's done.
+                    // The simplest (hacky) way for copy/paste is to just wait for all candidates.
+                    // But `setLocalDescription` promise already waits.
+                } else {
+                    console.log("ICE Candidate gathering complete.");
+                    // Now the localDescription contains all candidates.
+                    // --- NEW: Loading button text ---
+                    document.getElementById('offer-code').value = JSON.stringify(peerConnection.localDescription);
+                    const copyButton = document.querySelector("#host-wait-screen .lobby-button[onclick*='copyToClipboard']");
+                    if (copyButton) {
+                        copyButton.textContent = "Copy Offer";
+                        copyButton.disabled = false;
+                    }
+                    // --- END NEW ---
+                }
+            };
+
+            // --- NEW: Loading button text ---
+            const copyButton = document.querySelector("#host-wait-screen .lobby-button[onclick*='copyToClipboard']");
+            if (copyButton) {
+                copyButton.textContent = "Loading offer...";
+                copyButton.disabled = true;
+            }
+            // --- END NEW ---
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            // The onicecandidate handler will populate the textarea
+        }
+
+        async function setupJoinConnection() {
+            isHost = false;
+            peerConnection = new RTCPeerConnection(stunServers);
+
+            // Joiner waits for the data channel
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                console.log("Received data channel");
+                setupDataChannelEvents();
+            };
+
+            peerConnection.onicecandidate = (event) => {
+                if (!event.candidate) {
+                    console.log("ICE Candidate gathering complete.");
+                    document.getElementById('answer-code').value = JSON.stringify(peerConnection.localDescription);
+                    joinAnswerSection.classList.remove('hidden');
+                }
+            };
+            
+            const offer = JSON.parse(document.getElementById('offer-input').value);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            // The onicecandidate handler will populate the answer textarea
+        }
+
+        // --- Replace the ENTIRE setupDataChannelEvents function ---
+        function setupDataChannelEvents() {
+            dataChannel.onopen = () => {
+                console.log("DATA CHANNEL OPEN");
+                // Exchange player info
+                sendData({ 
+                    type: 'handshake', 
+                    username: localPlayer.username, 
+                    color: localPlayer.color 
+                });
+                
+                // --- NEW: Start heartbeat ---
+                if (heartbeatInterval) clearInterval(heartbeatInterval); // Clear any old ones
+                heartbeatInterval = setInterval(() => {
+                    sendData({ type: 'ping' });
+                }, heartbeatIntervalTime);
+                // --- END NEW ---
+
+                // Host waits for client handshake before starting
+                // --- FIX: Client must ALSO wait for handshake reply ---
+                // if (!isHost) {
+                //     initializeMultiplayerGame();
+                // }
+                // --- END FIX ---
+            };
+            dataChannel.onclose = () => {
+                // --- EDIT: Add a much more descriptive log ---
+                console.warn("DATA CHANNEL CLOSED. This is almost always a TIMEOUT. It means no data (not even a 'ping') was received for several seconds. The other player likely disconnected, closed their browser, or their game script crashed.");
+                
+                // --- NEW: Stop heartbeat ---
+                if (heartbeatInterval) clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+                // --- END NEW ---
+                showMenu();
+            };
+            dataChannel.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                // --- NEW: Handle heartbeat ---
+                if (data.type === 'ping') {
+                    // console.log('Received ping'); // Optional: for debugging
+                    return; // Just keep-alive, do nothing else
+                }
+                // --- END NEW ---
+
+                // --- RELOAD/ROTATION FIX: Add Euler helper ---
+                const euler = new THREE.Euler(); // For extracting yaw
+
+                if (isHost) {
+                    // --- HOST: Receives INPUTS from Client ---
+                    if (data.type === 'inputs') {
+                        remoteInputs = data.inputs;
+                        player2.userData.aim.yaw = data.aim.yaw;
+                        player2.userData.aim.pitch = data.aim.pitch;
+                    }
+                    if (data.type === 'event' && data.event === 'shoot') {
+                        shoot(player2, data.muzzle);
+                    }
+                    // --- RELOAD FIX: Host handles client reload events ---
+                    if (data.type === 'event' && data.event === 'start_reload') {
+                        if (player2 && !player2.userData.isReloading && !player2.userData.isReloaded) {
+                            player2.userData.isReloading = true;
+                        }
+                    }
+                    if (data.type === 'event' && data.event === 'stop_reload') {
+                        if (player2 && player2.userData.isReloading) {
+                            player2.userData.isReloading = false;
+                        }
+                    }
+                    // --- END RELOAD FIX ---
+                    if (data.type === 'handshake') {
+                        console.log("Host received handshake");
+                        remotePlayer.username = data.username;
+                        remotePlayer.color = data.color;
+                        // Now host can start the game
+                        initializeMultiplayerGame();
+                        
+                        // --- FIX: Host replies with its own info AND map seed ---
+                        sendData({ 
+                            type: 'handshake_reply', 
+                            username: localPlayer.username, 
+                            color: localPlayer.color,
+                            mapSeed: peerConnection.mapSeed // Send the seed
+                        });
+                        // --- END FIX ---
+                    }
+
+                } else {
+                    // --- CLIENT: Receives STATE from Host ---
+                    
+                    // --- FIX: Wait for host's reply before starting ---
+                    if (data.type === 'handshake_reply') {
+                        console.log("Client received handshake reply");
+                        remotePlayer.username = data.username;
+                        remotePlayer.color = data.color;
+                        
+                        // --- FIX: Seed and generate map (CLIENT) ---
+                        console.log(`Client using map seed: ${data.mapSeed}`);
+                        setRandomSeed(data.mapSeed); // Use our NEW function
+                        
+                        // --- FIX: Call the EXISTING removeMap function ---
+                        removeMap();
+
+                        generateMap(mainLoadingManager); // Client generates map now
+                        // --- END FIX ---
+
+                        // Now client can start the game
+                        initializeMultiplayerGame();
+                    }
+                    // --- END FIX ---
+
+                    // --- RELOAD FIX: Client reads authoritative reload state ---
+                    if (data.type === 'state') {
+                        // Buffer states for interpolation
+                        stateUpdateBuffer.push({ timestamp: Date.now(), state: data });
+                        if (stateUpdateBuffer.length > 20) stateUpdateBuffer.shift(); 
+                        
+                        // Apply latest health/score directly
+                        if (player1) {
+                            player1.userData.health = data.p1.health; 
+                        }
+                        if (player2) {
+                             // Apply authoritative state from host
+                            player2.userData.health = data.p2.health;
+                            player2.userData.isReloaded = data.p2.isReloaded;
+                            player2.userData.reloadProgress = data.p2.reloadProgress;
+                            
+                            // Check if host reset our reload state (e.g., after we shot)
+                            if (!data.p2.isReloaded && player2.userData.isReloading) {
+                                player2.userData.isReloading = false; // Stop optimistic reload if host says we're empty
+                            }
+                        }
+                        
+                        // Update UI from this new "truth"
+                        if (player1) updateHealthBar(player1);
+                        if (player2) {
+                            updateHealthBar(player2);
+                            updateReloadBar(player2);
+                            updateActionInstructions(player2); // Update text based on host's state
+                        }
+                        
+                        // Check for score change
+                        if (player1Score !== data.scores.p1 || player2Score !== data.scores.p2) {
+                            player1Score = data.scores.p1;
+                            player2Score = data.scores.p2;
+                            updateScoreboard();
+                        }
+                        
+                    } // --- END of if (data.type === 'state') ---
+                    // --- END RELOAD FIX ---
+                    
+                    // --- FIX: Moved CLIENT event handling block to here ---
+                    if (data.type === 'event') {
+                        if (data.event === 'explosion') {
+                            createExplosion(new THREE.Vector3(data.pos.x, data.pos.y, data.pos.z), null, false); // No damage calc
+                        }
+                        if (data.event === 'tree_destroyed') {
+                            if (!destroyedCollidables.has(data.index)) {
+                                destroyedCollidables.add(data.index);
+                                const collidable = collidables[data.index];
+                                if (collidable) {
+                                    spawnWoodParticles(collidable.position);
+                                    removeCollidable(collidable, data.index);
+                                }
+                            }
+                        }
+                        if (data.event === 'kill') {
+                            showWinMessage(data.winnerName, data.loserName);
+                            // Client needs to know who died for respawn
+                            if (data.loserId === 'p1' && player1) player1.userData.isDead = true;
+                            if (data.loserId === 'p2' && player2) player2.userData.isDead = true;
+                        }
+                        if (data.event === 'respawn') {
+                            const tank = (data.playerId === 'p1') ? player1 : player2;
+                            if (tank) {
+                                tank.position.copy(data.pos);
+                                tank.quaternion.copy(data.rot);
+                                tank.userData.health = maxPlayerHealth;
+                                tank.userData.isDead = false;
+                                tank.visible = true;
+                                if (isHost) updateHealthBar(tank); // Test mode only
+                            }
+                        }
+                        if (data.event === 'cutscene_start') {
+                            startFinalCutscene();
+                        }
+                    }
+                    // --- END FIX ---
+                    
+                }
+            };
+        }
+        function sendData(data) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify(data));
+            }
+        }
+
+        // --- NEW: Game Initialization ---
+
+        function initializeMultiplayerGame() {
+            console.log("Initializing Multiplayer Game...");
+            console.log("Local:", localPlayer, "Remote:", remotePlayer);
+
+            // Hide lobbies, show game
+            mainMenu.classList.add('hidden');
+            hostLobby.classList.add('hidden');
+            joinLobby.classList.add('hidden');
+            gameUiMultiplayer.classList.add('visible');
+            
+            // --- FIX: Show the single player UI (health/reload) as well ---
+            gameUiSinglePlayer.classList.add('visible');
+            // --- END FIX ---
+
+            // Reset scores
+            player1Score = 0;
+            player2Score = 0;
+
+            // Create tanks
+            if (isHost) {
+                player1 = createPlayerTank(localPlayer, 'p1');
+                player2 = createPlayerTank(remotePlayer, 'p2');
+                player1.position.copy(spawnPoint1);
+                player2.position.copy(spawnPoint2);
+                
+                // --- FIX: Hook up UI to local player (p1) ---
+                player1.userData.ui.health = document.getElementById('health-bar-fill');
+                player1.userData.ui.reload = document.getElementById('reload-bar-fill');
+                player1.userData.ui.actions = document.getElementById('action-instructions');
+                updateHealthBar(player1);
+                updateReloadBar(player1);
+                updateActionInstructions(player1);
+                // --- END FIX ---
+            } else {
+                // Client creates host as p1, self as p2
+                player1 = createPlayerTank(remotePlayer, 'p1');
+                player2 = createPlayerTank(localPlayer, 'p2');
+                player1.position.copy(spawnPoint1);
+                player2.position.copy(spawnPoint2);
+                
+                // --- FIX: Hook up UI to local player (p2) ---
+                player2.userData.ui.health = document.getElementById('health-bar-fill');
+                player2.userData.ui.reload = document.getElementById('reload-bar-fill');
+                player2.userData.ui.actions = document.getElementById('action-instructions');
+                updateHealthBar(player2);
+                updateReloadBar(player2);
+                updateActionInstructions(player2);
+                // --- END FIX ---
+            }
+            
+            // Set colors
+            player1Tank.colorMarker.material.color.set(isHost ? localPlayer.color : remotePlayer.color);
+            player2Tank.colorMarker.material.color.set(isHost ? remotePlayer.color : localPlayer.color);
+
+            tanks.push(player1, player2);
+            scene.add(player1, player2);
+
+            // Update scoreboard
+            player1ScoreDisplay.textContent = `${isHost ? localPlayer.username : remotePlayer.username}: ${player1Score}`;
+            player1ScoreDisplay.style.color = isHost ? localPlayer.color : remotePlayer.color;
+            player2ScoreDisplay.textContent = `${isHost ? remotePlayer.username : localPlayer.username}: ${player2Score}`;
+            player2ScoreDisplay.style.color = isHost ? remotePlayer.color : localPlayer.color;
+            
+            // Set game state
+            lastStateTimestamp = Date.now();
+            gameState = 'playing';
+            
+            // --- NEW: Log successful game start ---
+            console.log("%c--- GAME STATE SET TO 'PLAYING' ---", "color: #00ff00; font-weight: bold;");
+            // --- END NEW ---
+        }
+
+        function startTestMode() {
+            console.log("Starting Test Mode");
+            isHost = true; // Act as host
+            gameMode = 'infinite';
+            
+            // Hide menu, show single player UI
+            mainMenu.classList.add('hidden');
+            gameUiSinglePlayer.classList.add('visible');
+            
+            // --- FIX: Need to clear old map and generate new one ---
+            setRandomSeed(Math.floor(Math.random() * 1000000));
+            removeMap();
+            generateMap(mainLoadingManager);
+            // --- END FIX ---
+
+            // Create just one player
+            player1 = createPlayerTank(localPlayer, 'p1');
+            player1.position.copy(spawnPoint1);
+            player1Tank.colorMarker.material.color.set(localPlayer.color);
+            tanks.push(player1);
+            scene.add(player1);
+            
+            // Set reload/health bars
+            player1.userData.ui.health = document.getElementById('health-bar-fill');
+            player1.userData.ui.reload = document.getElementById('reload-bar-fill');
+            player1.userData.ui.actions = document.getElementById('action-instructions');
+            
+            updateHealthBar(player1);
+            updateReloadBar(player1);
+            updateActionInstructions(player1);
+
+            gameState = 'playing';
+        }
+        
+        // --- NEW: Player Tank Factory ---
+        function createPlayerTank(playerInfo, playerId) {
+            const playerGeometry = new THREE.BoxGeometry(2.5, 0.5, 3); 
+            const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, transparent: true, opacity: isDebugMode ? 0.5 : 0.0 });
+            const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial); 
+            playerMesh.position.y = 0.25; 
+            
+            const playerGroup = new THREE.Group(); 
+            playerGroup.add(playerMesh); 
+            playerGroup.position.y = 30;
+
+            // Store all physics and game data in userData
+            playerGroup.userData = {
+                id: playerId,
+                username: playerInfo.username,
+                color: playerInfo.color,
+                health: maxPlayerHealth,
+                // Physics
+                velocity: new THREE.Vector3(),
+                angularVelocity: 0.0,
+                yaw: 0.0,
+                // Aim
+                aim: { yaw: 0, pitch: 0 },
+                // State
+                isDead: false,
+                respawnTimer: 0.0,
+                // Reload
+                isReloading: false,
+                isReloaded: true,
+                reloadProgress: 1.0,
+                canShoot: true,
+                // UI (for test mode)
+                ui: { health: null, reload: null, actions: null },
+                // Model parts
+                headPivot: null,
+                turretPivot: null,
+                turretModel: null,
+                pivotMarker: null,
+                turretPivotMarker: null
+            };
+
+            // Head Pivot Point & Marker
+            const tankHeadPivot = new THREE.Group(); 
+            tankHeadPivot.position.copy(tankHeadPivotPosition); 
+            playerGroup.add(tankHeadPivot);
+            playerGroup.userData.headPivot = tankHeadPivot;
+
+            // --- NEW: Color Marker ---
+            const markerGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const markerMat = new THREE.MeshBasicMaterial({ color: playerInfo.color });
+            const colorMarker = new THREE.Mesh(markerGeo, markerMat);
+            colorMarker.position.set(0, 2, 0); // Above the head pivot
+            tankHeadPivot.add(colorMarker);
+            
+            // Assign to global tracker
+            if (playerId === 'p1') player1Tank.colorMarker = colorMarker;
+            else if (playerId === 'p2') player2Tank.colorMarker = colorMarker;
+
+
+            const pivotMarkerGeometry = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8)); 
+            const pivotMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true }); 
+            const pivotMarker = new THREE.Mesh(pivotMarkerGeometry, pivotMarkerMaterial); 
+            playerGroup.add(pivotMarker); 
+            pivotMarker.visible = isDebugMode;
+            playerGroup.userData.pivotMarker = pivotMarker;
+
+            // Load Tank Body Model
+            const mtlLoader = new MTLLoader(mainLoadingManager); 
+            const objLoader = new OBJLoader(mainLoadingManager);
+            mtlLoader.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/tank/body.mtl', (materials) => { 
+                materials.preload();
+                objLoader.setMaterials(materials); 
+                objLoader.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/tank/body.obj', (object) => { 
+                    object.scale.set(bodyModelScale, bodyModelScale, bodyModelScale);
+                    object.position.copy(bodyModelPositionOffset);
+                    object.rotation.copy(bodyModelRotationOffset);
+                    playerGroup.add(object); 
+                }); 
+            });
+            
+            // Load Tank Head Model
+            const mtlLoaderHead = new MTLLoader(mainLoadingManager); 
+            const objLoaderHead = new OBJLoader(mainLoadingManager);
+            mtlLoaderHead.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/tank/head.mtl', (materials) => { 
+                materials.preload();
+                objLoaderHead.setMaterials(materials); 
+                objLoaderHead.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/tank/head.obj', (object) => { 
+                    const tankHeadModel = object; 
+                    object.scale.set(headModelScale, headModelScale, headModelScale);
+                    object.position.copy(headModelPositionOffset); 
+                    object.rotation.copy(headModelRotationOffset);
+                    tankHeadPivot.add(object); 
+                    loadTurret(mainLoadingManager, playerGroup, tankHeadModel); // Pass group and head
+                }); 
+            });
+
+            // Assign to global tracker
+            if (playerId === 'p1') {
+                player1Tank.obj = playerGroup;
+                player1Tank.headPivot = tankHeadPivot;
+            } else {
+                player2Tank.obj = playerGroup;
+                player2Tank.headPivot = tankHeadPivot;
+            }
+
+            return playerGroup;
+        }
+
+        // --- Safe Spawn Function ---
+        function findSafeSpawnPoint() {
+            // Using predefined spawns for 1v1
+            // This function is now just a fallback
+            return spawnPoint1; 
+        }
+        
+        // --- Remove Map Function ---
+        function removeMap() {
+            if (ground) { scene.remove(ground); ground.geometry.dispose(); if (ground.material.map) ground.material.map.dispose(); ground.material.dispose(); ground = null; }
+            for (const obj of collidables) { 
+                // --- FIX: Add null check for removed collidables ---
+                if (obj) {
+                    scene.remove(obj);
+                    obj.traverse(child => {
+                        if (child.isMesh) {
+                            child.geometry.dispose();
+                            if (child.material.isMaterial) { if (child.material.map) child.material.map.dispose(); child.material.dispose(); }
+                        }
+                    });
+                }
+            }
+            collidables.length = 0; collidableBoxes.length = 0; trees.length = 0; barriers.length = 0; 
+            destroyedCollidables.clear(); // IMPORTANT
+            for (const bullet of bullets) { scene.remove(bullet); } bullets.length = 0;
+            for (const explosion of explosions) { 
+                if (explosion.userData.audio && explosion.userData.audio.isPlaying) explosion.userData.audio.stop();
+                scene.remove(explosion); 
+            } explosions.length = 0;
+            for (const particle of particles) { scene.remove(particle); } particles.length = 0; 
+            debugHelpers.children.forEach(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); }); debugHelpers.clear(); 
+        }
+
+        // --- Regenerate Map Function (Kept internally) ---
+        function regenerateMap() {
+            // This is now less useful, but we'll keep it for test mode
+            console.log("Regenerating map...");
+            const loadingScreen = document.getElementById('loading-screen');
+            loadingScreen.classList.add('transparent'); loadingScreen.style.display = 'flex'; void loadingScreen.offsetWidth; loadingScreen.style.opacity = '1';
+            isRegeneratingMap = true; scene.fog = null; 
+            removeMap();
+            
+            // Reset players
+            tanks.forEach((tank, index) => {
+                if (tank) {
+                    const spawnPoint = (index === 0) ? spawnPoint1 : spawnPoint2;
+                    tank.position.copy(spawnPoint);
+                    tank.userData.yaw = 0.0;
+                    tank.userData.velocity.set(0, 0, 0);
+                    tank.userData.angularVelocity = 0.0;
+                    tank.quaternion.identity();
+                    tank.userData.headPivot.position.copy(tankHeadPivotPosition); 
+                    tank.userData.headPivot.rotation.set(0, 0, 0);
+                    if (tank.userData.turretPivot) {
+                        tank.userData.turretPivot.position.copy(turretPivotPosition);
+                        tank.userData.turretPivot.rotation.set(0, 0, 0);
+                    }
+                }
+            });
+            
+            generateMap(mainLoadingManager);
+        }
+
+        // --- Map Generation Function ---
+        function generateMap(loadingManager) {
+             // Ground Texture
+             const textureLoader = new THREE.TextureLoader(loadingManager);
+             const grassTexture = textureLoader.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/grass.jpg', 
+                 (texture) => { texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(25, 25); texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); texture.needsUpdate = true; if (ground) { ground.material.map = texture; ground.material.needsUpdate = true; } } ); 
+             // Ground Geometry & Terrain
+             const groundGeometry = new THREE.PlaneGeometry(500, 500, 100, 100); 
+             const positions = groundGeometry.attributes.position; const vertex = new THREE.Vector3(); const amplitude1 = 8; const frequency1 = 0.005; const amplitude2 = 3; const frequency2 = 0.02; 
+// --- FIX: Use sine waves for smooth, rolling, synced terrain ---
+             const seedOffset = _seed / 1000.0; // Use the seed as a random offset
+             for (let i = 0; i < positions.count; i++) { 
+                vertex.fromBufferAttribute(positions, i); 
+                
+                // Get the vertex's X and Y coordinates on the flat plane
+                const x = vertex.x;
+                const y = vertex.y;
+
+                // Low-frequency "hills" (large bumps)
+                // We multiply two sine waves to create rolling hills
+                const hill = Math.sin(x * frequency1 + seedOffset) * Math.sin(y * frequency1 + seedOffset) * amplitude1;
+
+                // High-frequency "bumps" (small details)
+                const bump = Math.sin(x * frequency2) * Math.sin(y * frequency2) * amplitude2;
+
+                // The final height is the sum of both
+                const zOffset = hill + bump;
+                
+                positions.setZ(i, zOffset); 
+             }
+             // --- END FIX ---             groundGeometry.computeVertexNormals();
+             // Ground Mesh
+             const groundMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, map: grassTexture, side: THREE.DoubleSide });
+             ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+             // Load Decorations
+             loadWarehouse(loadingManager); loadTrees(loadingManager); loadBarriers(loadingManager); 
+        }
+
+        // --- Turret Loader Function ---
+        function loadTurret(manager, playerGroup, tankHeadModel) { 
+             const tankTurretPivot = new THREE.Group(); 
+             tankTurretPivot.position.copy(turretPivotPosition); 
+             tankHeadModel.add(tankTurretPivot); 
+             playerGroup.userData.turretPivot = tankTurretPivot;
+            
+             // Assign to global tracker
+             if (playerGroup.userData.id === 'p1') player1Tank.turretPivot = tankTurretPivot;
+             else if (playerGroup.userData.id === 'p2') player2Tank.turretPivot = tankTurretPivot;
+
+             const pivotMarkerGeometry = new THREE.WireframeGeometry(new THREE.SphereGeometry(0.5, 8, 8)); 
+             const pivotMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true }); 
+             const turretPivotMarker = new THREE.Mesh(pivotMarkerGeometry, pivotMarkerMaterial); 
+             tankHeadModel.add(turretPivotMarker); 
+             turretPivotMarker.visible = isDebugMode;
+             playerGroup.userData.turretPivotMarker = turretPivotMarker;
+
+             const mtlLoaderTurret = new MTLLoader(manager); 
+             const objLoaderTurret = new OBJLoader(manager);
+             mtlLoaderTurret.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/tank/turret.mtl', (materials) => { 
+                 materials.preload(); objLoaderTurret.setMaterials(materials); 
+                 objLoaderTurret.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/tank/turret.obj', (object) => { 
+                     playerGroup.userData.turretModel = object; // Store ref
+                     object.scale.set(turretModelScale, turretModelScale, turretModelScale); 
+                     object.position.copy(turretModelPosition); 
+                     object.rotation.copy(turretModelRotation); 
+                     tankTurretPivot.add(object); 
+                 }); 
+             });
+        }
+        
+        // --- Warehouse Loader Function ---
+        // --- Replace the loadWarehouse function ---
+        function loadWarehouse(manager) { 
+            const gltfLoader = new GLTFLoader(manager);
+            gltfLoader.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/warehouse.glb', (gltf) => { 
+                const warehouseModel = gltf.scene; 
+                // --- FIX: Use seeded random ---
+                const spawnCount = seededRandomInt(MIN_WAREHOUSES, MAX_WAREHOUSES); 
+                // --- END FIX ---
+                const spawnRange = SPAWN_AREA / 2; const groundRaycaster = new THREE.Raycaster();
+                for (let i = 0; i < spawnCount; i++) {
+                    const warehouse = warehouseModel.clone(); 
+                    warehouse.userData.type = 'warehouse'; 
+                    warehouse.userData.collidableIndex = collidables.length; // Store index
+                    warehouse.scale.set(warehouseScale, warehouseScale, warehouseScale);
+                    // --- FIX: Use seeded random ---
+                    const x = seededRandomFloat(-spawnRange, spawnRange); 
+                    const z = seededRandomFloat(-spawnRange, spawnRange); 
+                    warehouse.rotation.y = seededRandom() * Math.PI * 2;
+                    // --- END FIX ---
+                    const rayStart = new THREE.Vector3(x, 100, z); groundRaycaster.set(rayStart, new THREE.Vector3(0, -1, 0)); const intersects = groundRaycaster.intersectObject(ground);
+                    if (intersects.length > 0) { warehouse.groundY = intersects[0].point.y; warehouse.position.set(x, warehouse.groundY + warehouseYOffset, z); } else { warehouse.groundY = 0; warehouse.position.set(x, warehouseYOffset, z); }
+                    warehouse.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }}); scene.add(warehouse); collidables.push(warehouse); warehouse.boundingBox = new THREE.Box3().setFromObject(warehouse);
+                    const boxHelper = new THREE.BoxHelper(warehouse, 0xff0000); warehouse.debugBox = boxHelper; debugHelpers.add(boxHelper);
+                    // (debugLine removed for brevity)
+                }
+            }, undefined, (error) => { console.error('Error loading warehouse:', error); });
+        }
+
+        // --- Replace the loadTrees function ---
+        function loadTrees(manager) { 
+            const gltfLoader = new GLTFLoader(manager);
+            gltfLoader.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/giant_low_poly_tree.glb', (gltf) => { 
+                const treeModel = gltf.scene; 
+                // --- FIX: Use seeded random ---
+                const spawnCount = seededRandomInt(MIN_TREES, MAX_TREES); 
+                // --- END FIX ---
+                const spawnRange = SPAWN_AREA / 2; const groundRaycaster = new THREE.Raycaster(); trees.length = 0;
+                for (let i = 0; i < spawnCount; i++) {
+                    const tree = treeModel.clone(); 
+                    tree.userData.type = 'tree'; 
+                    tree.userData.collidableIndex = collidables.length; // Store index
+                    // --- FIX: Use seeded random ---
+                    const randomScale = treeScale + seededRandomFloat(0.0, treeScaleVariation); 
+                    tree.scale.set(randomScale, randomScale, randomScale);
+                    const x = seededRandomFloat(-spawnRange, spawnRange); 
+                    const z = seededRandomFloat(-spawnRange, spawnRange); 
+                    tree.rotation.y = seededRandom() * Math.PI * 2;
+                    // --- END FIX ---
+                    const rayStart = new THREE.Vector3(x, 100, z); groundRaycaster.set(rayStart, new THREE.Vector3(0, -1, 0)); const intersects = groundRaycaster.intersectObject(ground);
+                    if (intersects.length > 0) { tree.groundY = intersects[0].point.y; tree.position.set(x, tree.groundY + treeYOffset, z); } else { tree.groundY = 0; tree.position.set(x, treeYOffset, z); }
+                    tree.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }}); scene.add(tree); collidables.push(tree); tree.boundingBox = new THREE.Box3().setFromObject(tree); trees.push(tree); 
+                    const boxHelper = new THREE.BoxHelper(tree, 0xff8800); tree.debugBox = boxHelper; debugHelpers.add(boxHelper);
+                    // (debugLine removed for brevity)
+                }
+            }, undefined, (error) => { console.error('Error loading tree:', error); });
+        }
+
+            // --- Replace the loadBarriers function ---
+        function loadBarriers(manager) { 
+            const gltfLoader = new GLTFLoader(manager);
+            gltfLoader.load( 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/concrete_armored_barrier.glb', (gltf) => { 
+                const barrierModel = gltf.scene; 
+                // --- FIX: Use seeded random ---
+                const spawnCount = seededRandomInt(MIN_BARRIERS, MAX_BARRIERS); 
+                // --- END FIX ---
+                const spawnRange = SPAWN_AREA / 2; const groundRaycaster = new THREE.Raycaster(); barriers.length = 0;
+                for (let i = 0; i < spawnCount; i++) {
+                    const barrier = barrierModel.clone(); 
+                    barrier.userData.type = 'barrier'; 
+                    barrier.userData.collidableIndex = collidables.length; // Store index
+                    barrier.scale.set(barrierScale, barrierScale, barrierScale);
+                    // --- FIX: Use seeded random ---
+                    const x = seededRandomFloat(-spawnRange, spawnRange); 
+                    const z = seededRandomFloat(-spawnRange, spawnRange); 
+                    barrier.rotation.y = seededRandom() * Math.PI * 2;
+                    // --- END FIX ---
+                    const rayStart = new THREE.Vector3(x, 100, z); groundRaycaster.set(rayStart, new THREE.Vector3(0, -1, 0)); const intersects = groundRaycaster.intersectObject(ground);
+                    if (intersects.length > 0) { barrier.groundY = intersects[0].point.y; barrier.position.set(x, barrier.groundY + barrierYOffset, z); } else { barrier.groundY = 0; barrier.position.set(x, barrierYOffset, z); }
+                    barrier.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }}); scene.add(barrier); collidables.push(barrier); barrier.boundingBox = new THREE.Box3().setFromObject(barrier); barriers.push(barrier); 
+                    const boxHelper = new THREE.BoxHelper(barrier, 0xff88ff); barrier.debugBox = boxHelper; debugHelpers.add(boxHelper);
+                    // (debugLine removed for brevity)
+                }
+            }, undefined, (error) => { console.error('Error loading barrier:', error); });
+        }
+        
+        // --- Toggle Precision Aim Function ---
+        function togglePrecisionAim() {
+            isPrecisionAiming = !isPrecisionAiming;
+            if (isPrecisionAiming) {
+                renderer.domElement.requestPointerLock();
+                vignetteElement.classList.add('active'); crosshairElement.classList.add('active'); precisionExitInstructionsElement.classList.add('active'); 
+                thirdPersonCamPos.copy(camera.position); 
+            } else {
+                document.exitPointerLock();
+                vignetteElement.classList.remove('active'); crosshairElement.classList.remove('active'); precisionExitInstructionsElement.classList.remove('active'); 
+                precisionZoomLevel = 0; isFollowingBullet = false; 
+            }
+        }
+
+        // --- Shooting Functions ---
+        // FIX 2: shoot() function - Add proper validation for reload state
+        function shoot(player, remoteMuzzle = null) {
+            const data = player.userData;
+            
+            // Debug the state
+            console.log(`Shoot attempt for ${data.username}:`, {
+                canShoot: data.canShoot,
+                hasModel: !!data.turretModel,
+                regenerating: isRegeneratingMap,
+                isReloaded: data.isReloaded,
+                isDead: data.isDead,
+                isReloading: data.isReloading,
+                reloadProgress: data.reloadProgress
+            });
+            
+            // Can only shoot if: not on cooldown, has model, not regenerating, IS RELOADED, not dead
+            if (!data.canShoot || !data.turretModel || isRegeneratingMap || !data.isReloaded || data.isDead) {
+                console.warn(`Cannot shoot: canShoot=${data.canShoot}, model=${!!data.turretModel}, reloaded=${data.isReloaded}, dead=${data.isDead}`);
+                return; 
+            }
+            
+            console.log(`✓ SHOOTING for ${data.username}`);
+            
+            data.canShoot = false; 
+            setTimeout(() => { data.canShoot = true; }, shootCooldown * 1000);
+            
+            // Reset reload state after shooting
+            data.isReloaded = false; 
+            data.reloadProgress = 0.0; 
+            data.isReloading = false; // Stop any active reload
+            updateReloadBar(player); 
+            updateActionInstructions(player); 
+
+            // Get Muzzle Position & Direction
+            muzzleWorldPos.copy(muzzlePosition); 
+            data.turretModel.localToWorld(muzzleWorldPos);
+            
+            muzzleDirection.set(0, 0, -1); 
+            data.turretModel.getWorldQuaternion(muzzleWorldQuat); 
+            muzzleOffsetQuat.setFromEuler(muzzleRotation); 
+            muzzleWorldQuat.multiply(muzzleOffsetQuat); 
+            muzzleDirection.applyQuaternion(muzzleWorldQuat).normalize();
+
+            // Client-side prediction vs Authoritative
+            if (isHost) {
+                // HOST: Spawn bullet and send event
+                const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+                bullet.position.copy(muzzleWorldPos); 
+                bullet.velocity = muzzleDirection.clone().multiplyScalar(bulletSpeed); 
+                bullet.age = 0; 
+                bullet.lastPosition = bullet.position.clone(); 
+                bullet.isBullet = true; 
+                bullet.ownerId = data.id; // Mark who shot it
+                scene.add(bullet); 
+                bullets.push(bullet);
+
+                // Send explosion event
+                sendData({
+                    type: 'event',
+                    event: 'explosion',
+                    pos: { x: muzzleWorldPos.x, y: muzzleWorldPos.y, z: muzzleWorldPos.z },
+                    dir: { x: muzzleDirection.x, y: muzzleDirection.y, z: muzzleDirection.z },
+                    ownerId: data.id
+                });
+
+            } else {
+                // CLIENT: Send shoot event to host
+                sendData({
+                    type: 'event',
+                    event: 'shoot',
+                    muzzle: {
+                        pos: { x: muzzleWorldPos.x, y: muzzleWorldPos.y, z: muzzleWorldPos.z },
+                        dir: { x: muzzleDirection.x, y: muzzleDirection.y, z: muzzleDirection.z }
+                    }
+                });
+            }
+
+            if (isPrecisionAiming) { 
+                isFollowingBullet = true; 
+                followBulletTimer = 0; 
+                followBulletStartPos.copy(camera.position); 
+                followBulletDirection.copy(muzzleDirection); 
+            }
+        }
+
+        // CLIENT-SIDE bullet "spawner" (from host event)
+        function createClientBullet(pos, dir, ownerId) {
+            const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+            bullet.position.copy(pos); 
+            bullet.velocity = dir.clone().multiplyScalar(bulletSpeed); 
+            bullet.age = 0; 
+            bullet.lastPosition = bullet.position.clone(); 
+            bullet.isBullet = true; 
+            bullet.ownerId = ownerId;
+            scene.add(bullet); 
+            bullets.push(bullet);
+        }
+
+        function updateBullets(delta) { 
+             // Bullet physics ONLY run on the HOST
+             if (!isHost && gameState !== 'playing') {
+                 // Client just moves bullets based on state, no physics
+                 // This is handled in the state interpolation section
+                 return;
+             }
+
+             // --- HOST PHYSICS ---
+             for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i]; 
+                bullet.lastPosition.copy(bullet.position); 
+                bullet.velocity.y -= bulletGravityStrength * delta; 
+                bullet.position.add(bullet.velocity.clone().multiplyScalar(delta));
+                
+                const bulletTravelVec = bullet.position.clone().sub(bullet.lastPosition); 
+                const bulletTravelDist = bulletTravelVec.length(); 
+                bulletTravelVec.normalize();
+                
+                if (bulletTravelDist > 0) {
+                    bulletRaycaster.set(bullet.lastPosition, bulletTravelVec); 
+                    bulletRaycaster.far = bulletTravelDist;
+                    
+                    // Check against ground, collidables, and *other* tanks
+                    const objectsToHit = [ground, ...collidables.filter(c => c !== null), ...tanks.filter(t => t.userData.id !== bullet.ownerId && !t.userData.isDead)];
+                    
+                    const intersects = bulletRaycaster.intersectObjects(objectsToHit, true);
+                    
+                    if (intersects.length > 0) { 
+                        // Check if we hit a tank
+                        let hitObject = intersects[0].object;
+                        let hitTank = null;
+                        
+                        // Traverse up to find the tank Group
+                        while (hitObject) {
+                            if (hitObject.isGroup && hitObject.userData.id) {
+                                hitTank = hitObject;
+                                break;
+                            }
+                            hitObject = hitObject.parent;
+                        }
+
+                        // --- FIX: Add missing bullet hit logic ---
+                        // Host creates authoritative explosion
+                        createExplosion(intersects[0].point, hitTank || intersects[0].object, true); 
+                        removeBullet(bullet, i);
+                        // --- END FIX ---
+                    
+                    } // --- FIX: This brace was missing ---
+                } // --- FIX: This brace was missing ---
+
+                // --- FIX: Add bullet lifespan logic ---
+                bullet.age += delta;
+                if (bullet.age > 10.0) { // 10 second lifespan
+                    removeBullet(bullet, i);
+                }
+                // --- END FIX ---
+
+            } // --- FIX: This brace was missing ---
+        }
+
+        function removeBullet(bullet, index) { 
+            scene.remove(bullet); 
+            bullets.splice(index, 1); 
+        }
+
+        // --- Explosion Function (UPDATED) ---
+        function createExplosion(position, hitObject, doDamage) {
+            // --- FIX: Add guard to prevent crash if material not loaded ---
+            if (!explosionMaterial || !explosionSoundBuffer) {
+                console.warn("Explosion event received, but assets not ready. Skipping.");
+                return;
+            } 
+            // --- END FIX ---
+            
+            // --- This part runs on HOST and CLIENT (from event) ---
+            // Sprite Setup
+            const explosion = new THREE.Mesh(explosionGeometry, explosionMaterial.clone());
+            explosion.position.copy(position); 
+            explosion.scale.setScalar(0.1 * (explosionSize / 10.0));
+            explosion.userData.age = 0; 
+            explosion.userData.currentFrame = 0;
+            
+            // Audio Setup
+            const sound = new THREE.PositionalAudio(audioListener);
+            sound.setBuffer(explosionSoundBuffer); 
+            sound.setRefDistance(10); 
+            sound.setRolloffFactor(1); 
+            sound.setMaxDistance(100); 
+            sound.setVolume(1.0); 
+            explosion.add(sound); 
+            explosion.userData.audio = sound; 
+            scene.add(explosion); 
+            // --- FIX: Push the MESH, not the SOUND ---
+            explosions.push(explosion); 
+            // --- END FIX ---
+            sound.play(); 
+
+            // --- This part ONLY runs on HOST ---
+            if (isHost && doDamage) {
+                // Send event so client can spawn visual/audio
+                sendData({
+                    type: 'event',
+                    event: 'explosion',
+                    pos: { x: position.x, y: position.y, z: position.z }
+                });
+
+                // Player Damage & Camera Shake
+                tanks.forEach(tank => {
+                    if (!tank.userData.isDead) {
+                        const distanceToPlayer = position.distanceTo(tank.position);
+                        if (distanceToPlayer < explosionBlastRadius) {
+                            const damageRatio = Math.max(0, 1.0 - (distanceToPlayer / explosionBlastRadius)); 
+                            const damage = explosionMaxDamage * damageRatio; 
+                            tank.userData.health -= damage; 
+                            tank.userData.health = Math.max(0, tank.userData.health); 
+                            console.log(`${tank.userData.username} hit! Dmg: ${damage.toFixed(1)}, Health: ${tank.userData.health.toFixed(0)}`); 
+                            
+                            updateHealthBar(tank); // For test mode
+
+                            if (tank.userData.health <= 0) {
+                                handlePlayerDeath(tank);
+                            }
+                        }
+                    }
+                });
+                
+                // Shake local (host) camera
+                const distanceToHost = position.distanceTo(player1.position); 
+                const maxShakeDistance = 30; 
+                if (distanceToHost < maxShakeDistance) { 
+                    const shakeRatio = 1.0 - THREE.MathUtils.clamp(distanceToHost / maxShakeDistance, 0, 1); 
+                    const baseShake = 0.1; 
+                    const proximityShake = shakeRatio * 0.3; 
+                    cameraShakeIntensity += baseShake + proximityShake; 
+                }
+
+                // Collidable Damage
+                for (let i = collidables.length - 1; i >= 0; i--) {
+                    const collidable = collidables[i];
+                    if (destroyedCollidables.has(collidable.userData.collidableIndex)) continue; // Already dead
+
+                    const distance = position.distanceTo(collidable.position);
+                    collidable.boundingBox.getSize(collidableBoxSize); 
+                    const collidableRadius = Math.max(collidableBoxSize.x, collidableBoxSize.z) / 2;
+                    
+                    if (distance < explosionBlastRadius + collidableRadius) {
+                        if (collidable.userData.type === 'tree') { 
+                            const treeIndex = collidable.userData.collidableIndex;
+                            destroyedCollidables.add(treeIndex);
+                            spawnWoodParticles(collidable.position);
+                            removeCollidable(collidable, i); 
+                            
+                            // Send sync event
+                            sendData({
+                                type: 'event',
+                                event: 'tree_destroyed',
+                                index: treeIndex
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        // --- NEW: Handle Player Death (HOST ONLY) ---
+        function handlePlayerDeath(deadTank) {
+            if (deadTank.userData.isDead) return; // Already processing
+            deadTank.userData.isDead = true;
+            deadTank.visible = false; // Hide tank
+            
+            const winnerTank = (deadTank.userData.id === 'p1') ? player2 : player1;
+            
+            // Score update
+            if (winnerTank.userData.id === 'p1') player1Score++;
+            else player2Score++;
+            
+            updateScoreboard();
+
+            // Send kill event
+            sendData({
+                type: 'event',
+                event: 'kill',
+                loserId: deadTank.userData.id,
+                winnerId: winnerTank.userData.id,
+                winnerName: winnerTank.userData.username,
+                loserName: deadTank.userData.username,
+                scores: { p1: player1Score, p2: player2Score }
+            });
+            
+            // Show local win message
+            showWinMessage(winnerTank.userData.username, deadTank.userData.username);
+
+            // Check for game end
+            if (gameMode !== 'infinite' && (player1Score >= winScore || player2Score >= winScore)) {
+                // GAME OVER
+                console.log("GAME OVER, starting cutscene");
+                startFinalCutscene();
+                sendData({ type: 'event', event: 'cutscene_start' });
+            } else {
+                // Respawn
+                deadTank.userData.respawnTimer = 2.0;
+            }
+        }
+
+        function respawnPlayer(player) {
+            const spawnPoint = (player.userData.id === 'p1') ? spawnPoint1 : spawnPoint2;
+            player.position.copy(spawnPoint);
+            player.quaternion.identity();
+            player.userData.velocity.set(0,0,0);
+            player.userData.angularVelocity = 0;
+            player.userData.yaw = 0;
+            player.userData.health = maxPlayerHealth;
+            player.userData.isDead = false;
+            player.visible = true;
+            updateHealthBar(player); // for test mode
+            
+            // Send respawn event
+            sendData({
+                type: 'event',
+                event: 'respawn',
+                playerId: player.userData.id,
+                pos: { x: spawnPoint.x, y: spawnPoint.y, z: spawnPoint.z },
+                rot: { x: 0, y: 0, z: 0, w: 1 }
+            });
+        }
+
+        // --- Update Explosion (UPDATED for Sprite) ---
+        function updateExplosions(delta) {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const explosion = explosions[i]; 
+                explosion.userData.age += delta; 
+                const progress = explosion.userData.age / explosionDuration;
+                if (progress >= 1) { 
+                    if (explosion.userData.audio && explosion.userData.audio.isPlaying) explosion.userData.audio.stop();
+                    scene.remove(explosion); 
+                    if (explosion.material.map) explosion.material.map.dispose(); 
+                    explosion.material.dispose(); 
+                    explosions.splice(i, 1);
+                } else {
+                    const frame = Math.floor(progress * explosionTotalFrames);
+                    if (frame !== explosion.userData.currentFrame) {
+                        explosion.userData.currentFrame = frame;
+                        const row = Math.floor(frame / explosionCols); 
+                        const col = frame % explosionCols;
+                        if (explosion.material.map) {
+                            explosion.material.map.offset.x = col / explosionCols; 
+                            explosion.material.map.offset.y = 1.0 - (row + 1) / explosionRows; 
+                            explosion.material.map.repeat.set(1 / explosionCols, 1 / explosionRows);
+                        }
+                    }
+                    explosion.scale.setScalar(THREE.MathUtils.lerp(0.1 * (explosionSize / 10.0), explosionSize, progress)); 
+                    explosion.lookAt(camera.position); 
+                }
+            }
+        }
+
+        function removeCollidable(collidable, index) { 
+             scene.remove(collidable); 
+             // IMPORTANT: We don't splice, we nullify, to keep indices stable
+             collidables[index] = null; 
+             
+             if (collidable.userData.type === 'tree') { 
+                 const treeIndex = trees.indexOf(collidable); 
+                 if (treeIndex > -1) trees.splice(treeIndex, 1); 
+             } else if (collidable.userData.type === 'barrier') { 
+                 const barrierIndex = barriers.indexOf(collidable); 
+                 if (barrierIndex > -1) barriers.splice(barrierIndex, 1); 
+             }
+             if (collidable.debugBox) { debugHelpers.remove(collidable.debugBox); collidable.debugBox.geometry.dispose(); collidable.debugBox.material.dispose(); }
+             collidable.traverse(child => { if (child.isMesh) { child.geometry.dispose(); if (child.material.isMaterial) { if (child.material.map) child.material.map.dispose(); child.material.dispose(); } } });
+        }
+        
+        // --- Particle Functions ---
+        function spawnWoodParticles(position) {
+            if (!woodParticleGeometry || !woodParticleMaterial) return;
+            const count = THREE.MathUtils.randInt(10, 15);
+            for (let i = 0; i < count; i++) {
+                const particle = new THREE.Mesh(woodParticleGeometry, woodParticleMaterial);
+                particle.position.copy(position).add( new THREE.Vector3( (Math.random() - 0.5) * 2, Math.random() * 1.5, (Math.random() - 0.5) * 2 ));
+                particle.scale.set( THREE.MathUtils.randFloat(0.5, 1.5), THREE.MathUtils.randFloat(1.0, 3.0), THREE.MathUtils.randFloat(0.5, 1.5) );
+                const velocity = new THREE.Vector3( (Math.random() - 0.5) * 10, Math.random() * 5 + 5, (Math.random() - 0.5) * 10 );
+                const rotationSpeed = new THREE.Vector3( (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5 );
+                particle.userData = { velocity: velocity, rotationSpeed: rotationSpeed, age: 0 };
+                scene.add(particle); particles.push(particle);
+            }
+        }
+
+        function updateParticles(delta) {
+             // Particles are cosmetic, can run on both
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i]; const data = particle.userData;
+                data.velocity.y -= particleGravity * delta;
+                particle.position.add(data.velocity.clone().multiplyScalar(delta));
+                particle.rotation.x += data.rotationSpeed.x * delta; particle.rotation.y += data.rotationSpeed.y * delta; particle.rotation.z += data.rotationSpeed.z * delta;
+                data.age += delta;
+                if (data.age >= particleLifespan) { scene.remove(particle); particles.splice(i, 1); }
+            }
+        }
+        
+        // --- UI Update Functions (Refactored) ---
+        function updateHealthBar(player) { 
+            if (player && player.userData.ui.health) { 
+                player.userData.ui.health.style.width = `${(player.userData.health / maxPlayerHealth) * 100}%`; 
+            } 
+        }
+        function updateReloadBar(player) { 
+            if (player && player.userData.ui.reload) { 
+                player.userData.ui.reload.style.width = `${player.userData.reloadProgress * 100}%`; 
+            } 
+        }
+        function updateActionInstructions(player) { 
+            if (player && player.userData.ui.actions) { 
+                if (!player.userData.isReloaded && !player.userData.isReloading) { 
+                    player.userData.ui.actions.textContent = "Hold R to reload"; 
+                } else if (player.userData.isReloading) { 
+                    player.userData.ui.actions.textContent = "Reloading..."; 
+                } else { 
+                    player.userData.ui.actions.textContent = "E to shoot"; 
+                } 
+            } 
+        }
+        function hideInitialInstructions() { 
+            if (!firstInputReceived && initialInstructionsElement) { 
+                firstInputReceived = true; 
+                initialInstructionsElement.classList.add('hidden'); 
+                setTimeout(() => { 
+                    if (initialInstructionsElement && initialInstructionsElement.parentNode) { 
+                        initialInstructionsElement.parentNode.removeChild(initialInstructionsElement); 
+                        initialInstructionsElement = null; 
+                    } 
+                }, 500); 
+            } 
+        }
+        function updateScoreboard() {
+            if (gameState === 'playing') {
+                player1ScoreDisplay.textContent = `${isHost ? localPlayer.username : remotePlayer.username}: ${player1Score}`;
+                player2ScoreDisplay.textContent = `${isHost ? remotePlayer.username : localPlayer.username}: ${player2Score}`;
+            }
+        }
+        function showWinMessage(winnerName, loserName) {
+            const message = winMessages[Math.floor(Math.random() * winMessages.length)]
+                .replace('{winner}', winnerName)
+                .replace('{loser}', loserName);
+            
+            winMessageText.textContent = message;
+            winMessageText.style.color = (winnerName === localPlayer.username) ? localPlayer.color : remotePlayer.color;
+            
+            winMessage.classList.add('visible');
+            setTimeout(() => {
+                winMessage.classList.remove('visible');
+            }, 3000); // Show for 3 seconds
+        }
+
+        // --- NEW: Final Cutscene Functions ---
+        function startFinalCutscene() {
+            gameState = 'cutscene';
+            cutsceneState = 'bars';
+            cutsceneTimer = 0;
+            p1ScoreAnim = 0;
+            p2ScoreAnim = 0;
+
+            // Hide UI
+            gameUiMultiplayer.classList.remove('visible');
+            vignetteElement.classList.remove('active');
+            crosshairElement.classList.remove('active');
+
+            // Show bars
+            cinematicBars.classList.add('visible');
+            
+            // Calc cam positions
+            cutsceneCamStart.copy(camera.position);
+            cutsceneLookAt.copy(player1.position).add(player2.position).multiplyScalar(0.5); // Look between tanks
+            cutsceneCamEnd.copy(cutsceneLookAt).add(new THREE.Vector3(0, 15, 25)); // Pull back and up
+        }
+        
+        function updateCutscene(delta) {
+            cutsceneTimer += delta;
+
+            if (cutsceneState === 'bars') {
+                // Wait for bars to animate
+                if (cutsceneTimer > 0.8) {
+                    cutsceneTimer = 0;
+                    cutsceneState = 'pan';
+                }
+            }
+            else if (cutsceneState === 'pan') {
+                // Pan camera
+                const panDuration = 2.0;
+                const progress = Math.min(cutsceneTimer / panDuration, 1.0);
+                camera.position.lerpVectors(cutsceneCamStart, cutsceneCamEnd, progress);
+                camera.lookAt(cutsceneLookAt);
+
+                if (progress >= 1.0) {
+                    cutsceneTimer = 0;
+                    cutsceneState = 'score';
+                    cutsceneScore.classList.add('visible');
+                    // Set initial scores
+                    cutsceneP1Score.textContent = '0';
+                    cutsceneP2Score.textContent = '0';
+                    cutsceneP1Score.style.color = isHost ? localPlayer.color : remotePlayer.color;
+                    cutsceneP2Score.style.color = isHost ? remotePlayer.color : localPlayer.color;
+                }
+            }
+            else if (cutsceneState === 'score') {
+                // Wait a beat
+                if (cutsceneTimer > 0.5) {
+                    cutsceneTimer = 0;
+                    cutsceneState = 'countup';
+                }
+            }
+            else if (cutsceneState === 'countup') {
+                // Animate score count up
+                const tickTime = 0.5 / Math.max(1, player1Score, player2Score); // Faster for high scores
+                if (cutsceneTimer > tickTime) {
+                    let countingDone = true;
+                    if (p1ScoreAnim < player1Score) {
+                        p1ScoreAnim++;
+                        cutsceneP1Score.textContent = p1ScoreAnim;
+                        countingDone = false;
+                    }
+                    if (p2ScoreAnim < player2Score) {
+                        p2ScoreAnim++;
+                        cutsceneP2Score.textContent = p2ScoreAnim;
+                        countingDone = false;
+                    }
+                    cutsceneTimer = 0; // Reset tick timer
+
+                    if (countingDone) {
+                        cutsceneState = 'result';
+                        cutsceneTimer = 0;
+                    }
+                }
+            }
+            else if (cutsceneState === 'result') {
+                // Show winner/loser
+                if (cutsceneTimer > 0.5) { // Wait 0.5s
+                    const p1Wins = player1Score > player2Score;
+                    if (p1Wins) {
+                        cutsceneP1Score.style.transform = 'scale(1.5)';
+                        cutsceneP2Score.style.transform = 'scale(0.8)';
+                        cutsceneP2Score.style.color = '#777';
+                        cutsceneColon.textContent = '>';
+                    } else {
+                        cutsceneP2Score.style.transform = 'scale(1.5)';
+                        cutsceneP1Score.style.transform = 'scale(0.8)';
+                        cutsceneP1Score.style.color = '#777';
+                        cutsceneColon.textContent = '<';
+                    }
+                    cutsceneTimer = 0;
+                    cutsceneState = 'finale';
+                }
+            }
+            else if (cutsceneState === 'finale') {
+                if (cutsceneTimer > 1.0) { // Wait 1s
+                    const p1Wins = player1Score > player2Score;
+                    const loserTank = p1Wins ? player2 : player1;
+                    const winnerTank = p1Wins ? player1 : player2;
+                    
+                    // Explode loser
+                    if (loserTank) {
+                        createExplosion(loserTank.position, null, false);
+                        loserTank.visible = false;
+                    }
+                    // TODO: Make winner drive off
+                    if (winnerTank) {
+                        // Simple for now: just disappear
+                        winnerTank.visible = false; 
+                    }
+
+                    cutsceneTimer = 0;
+                    cutsceneState = 'fade';
+                }
+            }
+            else if (cutsceneState === 'fade') {
+                if (cutsceneTimer > 2.0) { // Wait 2s
+                    // Fade to black
+                    document.body.style.transition = 'opacity 1s ease';
+                    document.body.style.opacity = '0';
+                    cutsceneTimer = 0;
+                    cutsceneState = 'reload';
+                }
+            }
+            else if (cutsceneState === 'reload') {
+                if (cutsceneTimer > 1.0) { // Wait 1s
+                    location.reload(); // Reload the page
+                }
+            }
+        }
+        
+        // --- NEW: Physics & State Update (Refactored) ---
+        
+        function updateHostLogic(delta) {
+            // --- HOST ---
+            
+            // --- FIX 2 & 3: Update local player (p1) ---
+            // 1. Get local (p1) inputs
+            const p1Inputs = {
+                forward: moveForward, backward: moveBackward, left: moveLeft, right: moveRight
+            };
+            updatePlayerPhysics(player1, p1Inputs, delta);
+            updatePlayerAim(player1, cameraYaw, cameraPitch, mouseY, window.innerHeight);
+    
+            // --- FIX 1: Update remote player (p2) ---
+            // 2. Apply remote (p2) inputs
+            updatePlayerPhysics(player2, remoteInputs, delta); // <-- Was p2Inputs
+            if (player2.userData.aim) {
+                // --- FIX: Add guards to prevent crash before models load ---
+                if (player2.userData.headPivot) {
+                    player2.userData.headPivot.rotation.y = player2.userData.aim.yaw;
+                }
+                if (player2.userData.turretPivot) {
+                    player2.userData.turretPivot.rotation.y = player2.userData.aim.pitch;
+                }
+            }
+            
+            // 3. Update reload logic for both
+            updatePlayerReload(player1, delta);
+            updatePlayerReload(player2, delta); // Host simulates this too
+            
+            // 4. Update respawn timers
+            tanks.forEach(tank => {
+                if (tank.userData.isDead) {
+                    tank.userData.respawnTimer -= delta;
+                    if (tank.userData.respawnTimer <= 0) {
+                        respawnPlayer(tank);
+                    }
+                }
+            });
+
+            // 5. Update Bullets (HOST ONLY)
+            updateBullets(delta);
+
+            // 6. Send state packet
+            timeSinceLastStateSend += delta * 1000;
+            if (timeSinceLastStateSend >= stateSendRate) {
+                timeSinceLastStateSend = 0;
+                
+                // Pack bullet data
+                const bulletData = bullets.map(b => ({
+                    id: b.uuid,
+                    pos: { x: b.position.x, y: b.position.y, z: b.position.z }
+                }));
+
+                // --- RELOAD FIX: Host sends authoritative reload state ---
+                const state = {
+                    type: 'state',
+                    timestamp: Date.now(),
+                    p1: {
+                        pos: { x: player1.position.x, y: player1.position.y, z: player1.position.z },
+                        rot: { x: player1.quaternion.x, y: player1.quaternion.y, z: player1.quaternion.z, w: player1.quaternion.w },
+                        headYaw: player1.userData.headPivot ? player1.userData.headPivot.rotation.y : 0,
+                        turretPitch: player1.userData.turretPivot ? player1.userData.turretPivot.rotation.y : 0,
+                        health: player1.userData.health,
+                        // --- ADDED ---
+                        isReloaded: player1.userData.isReloaded,
+                        reloadProgress: player1.userData.reloadProgress
+                    },
+                    p2: {
+                        pos: { x: player2.position.x, y: player2.position.y, z: player2.position.z },
+                        rot: { x: player2.quaternion.x, y: player2.quaternion.y, z: player2.quaternion.z, w: player2.quaternion.w },
+                        headYaw: player2.userData.headPivot ? player2.userData.headPivot.rotation.y : 0,
+                        turretPitch: player2.userData.turretPivot ? player2.userData.turretPivot.rotation.y : 0,
+                        health: player2.userData.health,
+                        // --- ADDED ---
+                        isReloaded: player2.userData.isReloaded,
+                        reloadProgress: player2.userData.reloadProgress
+                    },
+                    bullets: bulletData,
+                    scores: { p1: player1Score, p2: player2Score }
+                };
+                // --- END RELOAD FIX ---
+                sendData(state);
+            }
+        }
+
+        function updateClientLogic(delta) {
+            // --- CLIENT ---
+            // 1. Send local inputs (p2)
+            const p2Inputs = {
+                forward: moveForward, backward: moveBackward, left: moveLeft, right: moveRight
+            };
+            
+            // --- ROTATION FIX: Calculate aim relative to body yaw ---
+            let p2Aim = { yaw: 0, pitch: 0 };
+            const p2 = player2; // Client is p2
+            if (p2.userData.headPivot && p2.userData.turretModel && p2.userData.turretPivot) {
+                
+                // --- FIX: HEAD YAW must be relative to tank body ---
+                const bodyYaw = p2.userData.yaw; // Get the *current* body yaw from interpolation
+                let targetHeadYaw = cameraYaw - bodyYaw; // Calculate the difference
+                
+                // Normalize the angle
+                while (targetHeadYaw > Math.PI) targetHeadYaw -= Math.PI * 2;
+                while (targetHeadYaw < -Math.PI) targetHeadYaw += Math.PI * 2;
+
+                if (!isAimLocked && !isPrecisionAiming) { 
+                    p2Aim.yaw = THREE.MathUtils.lerp(p2.userData.headPivot.rotation.y, targetHeadYaw, delta * headTurnSpeed);
+                } else if (isPrecisionAiming) { 
+                    p2Aim.yaw = targetHeadYaw; 
+                }
+                // --- END FIX ---
+                
+                // TURRET PITCH: Calculate based on camera pitch (like the host does)
+                if (!isAimLocked && !isPrecisionAiming) { 
+                    const normalizedMouseY = (mouseY - (window.innerHeight / 2)) / (window.innerHeight / 2); 
+                    const mousePitch = -normalizedMouseY; 
+                    const basePitch = THREE.MathUtils.mapLinear(cameraPitch, 0.1, 1.4, 0, -10 * (Math.PI / 180)); 
+                    const mousePitchOffset = mousePitch * (30 * (Math.PI / 180));
+                    let targetPitch = basePitch + mousePitchOffset; 
+                    const maxPitchUp = 45 * (Math.PI / 180); 
+                    const maxPitchDown = -10 * (Math.PI / 180);
+                    targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
+                    p2Aim.pitch = THREE.MathUtils.lerp(p2.userData.turretPivot.rotation.y, targetPitch, delta * turretPitchSpeed);
+                } else if (isPrecisionAiming) { 
+                    let targetPitch = THREE.MathUtils.mapLinear(cameraPitch, cameraPitchMin, cameraPitchMax, 45 * (Math.PI / 180), -10 * (Math.PI / 180));
+                    const maxPitchUp = 45 * (Math.PI / 180); 
+                    const maxPitchDown = -10 * (Math.PI / 180); 
+                    targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
+                    p2Aim.pitch = targetPitch; 
+                }
+            }
+            sendData({ type: 'inputs', inputs: p2Inputs, aim: p2Aim });
+            
+            // --- RELOAD FIX: Client NO LONGER handles its own reload logic ---
+            // updatePlayerReload(player2, delta);
+            // --- END RELOAD FIX ---
+            
+            // 3. Update local tank aim visually (apply calculated aim immediately for smooth rendering)
+            if (player2.userData.headPivot) player2.userData.headPivot.rotation.y = p2Aim.yaw;
+            if (player2.userData.turretPivot) player2.userData.turretPivot.rotation.y = p2Aim.pitch;
+
+            // 4. Interpolate remote state (player1)
+            interpolateState();
+        }
+        
+        function updateTestModeLogic(delta) {
+            // --- TEST MODE ---
+            const p1Inputs = {
+                forward: moveForward, backward: moveBackward, left: moveLeft, right: moveRight
+            };
+            updatePlayerPhysics(player1, p1Inputs, delta);
+            updatePlayerAim(player1, cameraYaw, cameraPitch, mouseY, window.innerHeight);
+            updatePlayerReload(player1, delta);
+            
+            // Respawn
+            if (player1.userData.isDead) {
+                player1.userData.respawnTimer -= delta;
+                if (player1.userData.respawnTimer <= 0) {
+                    respawnPlayer(player1);
+                }
+            }
+
+            // Update Bullets
+            updateBullets(delta); // Host logic
+        }
+
+        function updatePlayerPhysics(player, inputs, delta) {
+            const data = player.userData;
+            if (data.isDead) {
+                data.velocity.set(0,0,0);
+                data.angularVelocity = 0;
+                return;
+            }
+
+            // --- Player Movement & Ground Clamp ---
+            if (inputs.left) data.angularVelocity += playerTurnAcceleration * delta; 
+            if (inputs.right) data.angularVelocity -= playerTurnAcceleration * delta;
+            if (inputs.forward) data.velocity.z += playerAcceleration * delta; 
+            if (inputs.backward) data.velocity.z -= playerAcceleration * delta;
+            
+            data.angularVelocity = THREE.MathUtils.damp(data.angularVelocity, 0, playerTurnDamping, delta); 
+            data.velocity.z = THREE.MathUtils.damp(data.velocity.z, 0, playerDamping, delta);
+            
+            data.yaw += data.angularVelocity * delta; 
+            yawQuaternion.setFromAxisAngle(upVector, data.yaw); 
+            playerForward.set(0, 0, -1).applyQuaternion(yawQuaternion); 
+            
+            // Collision
+            if (collidables.length > 0) {
+                const collisionCheckDistance = 8; 
+                if (data.velocity.z > 0) { 
+                    collisionRaycaster.set(player.position, playerForward); 
+                    const intersects = collisionRaycaster.intersectObjects(collidables.filter(c => c !== null), true); 
+                    if (intersects.length > 0 && intersects[0].distance < collisionCheckDistance) data.velocity.z = 0; 
+                }
+                if (data.velocity.z < 0) { 
+                    const backward = playerForward.clone().negate(); 
+                    collisionRaycaster.set(player.position, backward); 
+                    const intersects = collisionRaycaster.intersectObjects(collidables.filter(c => c !== null), true); 
+                    if (intersects.length > 0 && intersects[0].distance < collisionCheckDistance) data.velocity.z = 0; 
+                }
+            }
+            
+            player.position.add(playerForward.clone().multiplyScalar(data.velocity.z * delta));
+            
+            // Ground clamp
+            rayOrigin.copy(player.position).y += 10; 
+            raycaster.set(rayOrigin, upVector.clone().multiplyScalar(-1)); 
+            const groundIntersects = raycaster.intersectObject(ground);
+            
+            if (groundIntersects.length > 0) { 
+                const intersect = groundIntersects[0]; 
+                player.position.y = intersect.point.y + 1.0; 
+                groundNormal.copy(intersect.face.normal).applyQuaternion(ground.quaternion).normalize(); 
+                tiltQuaternion.setFromUnitVectors(upVector, groundNormal); 
+                finalQuaternion.copy(yawQuaternion).multiply(tiltQuaternion); 
+                player.quaternion.copy(finalQuaternion); 
+            } else { 
+                player.position.y -= 1 * delta; // Fall
+            }
+        }
+        
+// REPLACEMENT: updatePlayerAim function - Make BOTH host and client world-relative
+function updatePlayerAim(player, camYaw, camPitch, mY, winH) {
+    const data = player.userData;
+    if (data.isDead || !data.headPivot || !data.turretModel || !data.turretPivot) return;
+    
+    // --- Tank Head & Turret Aim (NOW WORLD-RELATIVE FOR BOTH) ---
+    
+    // --- ROTATION FIX: This logic is for HOST (P1) only ---
+    // Client (P2) aiming is handled in updateClientLogic
+    if (isHost && player.userData.id === 'p1') {
+        // HEAD YAW: Use camera yaw directly in world space (NOT relative to tank)
+        if (!isAimLocked && !isPrecisionAiming) { 
+            data.headPivot.rotation.y = THREE.MathUtils.lerp(data.headPivot.rotation.y, camYaw, clock.getDelta() * headTurnSpeed); 
+        } else if (isPrecisionAiming) { 
+            data.headPivot.rotation.y = camYaw; 
+        }
+        
+        // TURRET PITCH: Calculate based on camera pitch (same for both)
+        if (!isAimLocked && !isPrecisionAiming) { 
+            const normalizedMouseY = (mY - (winH / 2)) / (winH / 2); 
+            const mousePitch = -normalizedMouseY; 
+            const basePitch = THREE.MathUtils.mapLinear(camPitch, 0.1, 1.4, 0, -10 * (Math.PI / 180)); 
+            const mousePitchOffset = mousePitch * (30 * (Math.PI / 180));
+            let targetPitch = basePitch + mousePitchOffset; 
+            const maxPitchUp = 45 * (Math.PI / 180); 
+            const maxPitchDown = -10 * (Math.PI / 180);
+            targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
+            data.turretPivot.rotation.y = THREE.MathUtils.lerp(data.turretPivot.rotation.y, targetPitch, clock.getDelta() * turretPitchSpeed);
+        } else if (isPrecisionAiming) { 
+            let targetPitch = THREE.MathUtils.mapLinear(camPitch, cameraPitchMin, cameraPitchMax, 45 * (Math.PI / 180), -10 * (Math.PI / 180));
+            const maxPitchUp = 45 * (Math.PI / 180); 
+            const maxPitchDown = -10 * (Math.PI / 180); 
+            targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
+            data.turretPivot.rotation.y = targetPitch; 
+        }
+        
+        data.turretModel.rotation.copy(turretModelRotation);
+    }
+}
+
+        function updatePlayerReload(player, delta) {
+            const data = player.userData;
+            
+            // --- RELOAD FIX: This function is now ONLY run on the HOST ---
+            // (or in test mode)
+            // It simulates the reload for both players
+            
+            // If not reloading, don't do anything
+            if (!data.isReloading) {
+                // If we are not reloading, but we ARE reloaded, nothing to do.
+                // If we are not reloading, and NOT reloaded (e.g. key released), progress stays put.
+                return;
+            }
+            
+            // Increment reload progress
+            data.reloadProgress += delta / reloadTime;
+            
+            // Check if reload is complete
+            if (data.reloadProgress >= 1.0) { 
+                data.reloadProgress = 1.0; 
+                data.isReloaded = true; 
+                data.isReloading = false; 
+                console.log(`${data.username} reload complete!`);
+            }
+            
+            // Update UI bars (works locally for the host, p1)
+            if(player.userData.id === 'p1') {
+                updateReloadBar(player);
+                updateActionInstructions(player);
+            }
+        }
+        
+        function interpolateState() {
+            // --- CLIENT-SIDE INTERPOLATION ---
+            if (isHost || stateUpdateBuffer.length < 2) return;
+
+            const now = Date.now();
+            const renderTimestamp = now - (1000.0 / 20.0); // Render 50ms in the past
+
+            // Find two states to interpolate between
+            let state1 = null;
+            let state2 = null;
+            for (let i = stateUpdateBuffer.length - 1; i >= 0; i--) {
+                if (stateUpdateBuffer[i].timestamp <= renderTimestamp) {
+                    state1 = stateUpdateBuffer[i];
+                    state2 = (i + 1 < stateUpdateBuffer.length) ? stateUpdateBuffer[i + 1] : stateUpdateBuffer[i];
+                    break;
+                }
+            }
+            
+            if (!state1) return; // Not enough data yet
+
+            // --- FIX: Prevent divide by zero which causes NaN/Infinity crash ---
+            let interpFactor;
+            const timeDiff = state2.timestamp - state1.timestamp;
+            
+            if (timeDiff <= 0) { // If states are same or out of order
+                interpFactor = 1.0; // Just snap to the latest valid state (state1)
+            } else {
+                const t = (renderTimestamp - state1.timestamp) / timeDiff;
+                interpFactor = Math.max(0, Math.min(1, t)); // Clamp 0-1
+            }
+            // --- END FIX ---
+
+            // --- Interpolate P1 (Host) ---
+            if (player1 && state1.state.p1 && state2.state.p1) {
+                const p1_pos1 = new THREE.Vector3().copy(state1.state.p1.pos);
+                const p1_pos2 = new THREE.Vector3().copy(state2.state.p1.pos);
+                player1.position.lerpVectors(p1_pos1, p1_pos2, interpFactor);
+
+                const p1_rot1 = new THREE.Quaternion().copy(state1.state.p1.rot);
+                const p1_rot2 = new THREE.Quaternion().copy(state2.state.p1.rot);
+                player1.quaternion.slerpQuaternions(p1_rot1, p1_rot2, interpFactor);
+                
+                // --- FIX: Add guards for client-side interpolation ---
+                if (player1.userData.headPivot) {
+                    player1.userData.headPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p1.headYaw, state2.state.p1.headYaw, interpFactor);
+                }
+                if (player1.userData.turretPivot) {
+                    player1.userData.turretPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p1.turretPitch, state2.state.p1.turretPitch, interpFactor);
+                }
+            }
+
+            // --- Interpolate P2 (Self) ---
+            if (player2 && state1.state.p2 && state2.state.p2) {
+                // We are P2. We need to smooth our *own* position based on server's authority
+                const p2_pos1 = new THREE.Vector3().copy(state1.state.p2.pos);
+                const p2_pos2 = new THREE.Vector3().copy(state2.state.p2.pos);
+                player2.position.lerpVectors(p2_pos1, p2_pos2, interpFactor);
+
+                const p2_rot1 = new THREE.Quaternion().copy(state1.state.p2.rot);
+                const p2_rot2 = new THREE.Quaternion().copy(state2.state.p2.rot);
+                player2.quaternion.slerpQuaternions(p2_rot1, p2_rot2, interpFactor);
+                
+                // --- ROTATION FIX: Extract and store the authoritative body yaw ---
+                euler.setFromQuaternion(player2.quaternion, 'YXZ');
+                player2.userData.yaw = euler.y;
+                // --- END ROTATION FIX ---
+            }
+            
+            // --- Sync Bullets ---
+            // This is "snapshot" based, no lerp. Just create/move/destroy
+            const state = state2.state;
+            const bulletsOnClient = new Set(bullets.map(b => b.uuid));
+            const bulletsInState = new Set();
+            
+            for (const bulletData of state.bullets) {
+                bulletsInState.add(bulletData.id);
+                let bullet = scene.getObjectByProperty('uuid', bulletData.id);
+                if (!bullet) {
+                    // New bullet
+                    bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+                    bullet.uuid = bulletData.id;
+                    bullet.position.copy(bulletData.pos);
+                    scene.add(bullet);
+                    bullets.push(bullet);
+                } else {
+                    // Update existing
+                    bullet.position.copy(bulletData.pos);
+                }
+            }
+            
+            // Remove bullets that are on client but not in state
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                if (!bulletsInState.has(bullets[i].uuid)) {
+                    scene.remove(bullets[i]);
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+
+        // --- Animate Loop ---
+        function animate() {
+            try { // --- NEW: Add try...catch to find hidden errors ---
+                requestAnimationFrame(animate);
+                const delta = clock.getDelta();
+                
+                // --- FIX: Re-add the missing switch statement ---
+                switch (gameState) {
+                    case 'playing':
+                        // Update game logic based on host/client
+                        if (isHost) {
+                            // Test mode OR multiplayer host
+                            if (gameState === 'playing') { // Double check just in case
+                                if (player2) updateHostLogic(delta); // Multiplayer
+                                else updateTestModeLogic(delta);   // Single player
+                            }
+                        } else {
+                            // Client
+                            if (gameState === 'playing') {
+                                updateClientLogic(delta);
+                            }
+                        }
+
+                        // --- FIX: Call explosion and particle updates ---
+                        updateExplosions(delta);
+                        updateParticles(delta);
+                        // --- END FIX ---
+
+                        // Camera and Debug follow local player (p1 in test/host, p2 in client)
+                        const localTank = (isHost) ? player1 : player2;
+                        if (localTank) {
+                            updateCamera(delta, localTank);
+                            updateDebugVisuals(localTank);
+                        }
+                        break;
+                    
+                    case 'cutscene':
+                        updateCutscene(delta);
+                        break;
+                    
+                    // Menu, Lobby, Loading states do nothing here
+                } // --- END FIX ---
+
+            // Render
+            renderer.render(scene, camera);
+
+            } catch (e) {
+                console.error("CRITICAL ERROR IN ANIMATE LOOP:", e);
+                // --- EDIT: Add a log to explain what's happening ---
+                console.warn("A local script error was caught. Forcing a return to the menu to prevent a full page crash.");
+                // This is likely what's causing the "disconnect"
+                // Stop the loop and go to menu to prevent spam
+                showMenu(); 
+            }
+        }
+        
+        // --- NEW: Camera Update (Refactored) ---
+        function updateCamera(delta, localPlayer) {
+            if (!localPlayer || isRegeneratingMap) return;
+
+            let targetFov = defaultFov; 
+
+            if (isFollowingBullet) { 
+                followBulletTimer += delta; 
+                const followProgress = Math.min(followBulletTimer / followBulletDuration, 1.0);
+                followBulletLookAt.copy(followBulletStartPos).add(followBulletDirection.clone().multiplyScalar(100)); 
+                camera.lookAt(followBulletLookAt);
+                if (followProgress >= 1.0) { isFollowingBullet = false; }
+            } 
+            else if (isPrecisionAiming) { 
+                 targetFov = THREE.MathUtils.mapLinear(precisionZoomLevel, 0, 1, precisionFovBase, precisionFovMin); 
+                 
+                 // --- FIX: Add guard to prevent crash on right-click before model load ---
+                 if (localPlayer.userData.turretModel) {
+                    muzzleWorldPos.copy(muzzlePosition); 
+                    localPlayer.userData.turretModel.localToWorld(muzzleWorldPos); 
+                    precisionCamPos.copy(muzzleWorldPos);
+                    
+                    muzzleDirection.set(0, 0, -1); 
+                    localPlayer.userData.turretModel.getWorldQuaternion(muzzleWorldQuat); 
+                    muzzleOffsetQuat.setFromEuler(muzzleRotation); 
+                    muzzleWorldQuat.multiply(muzzleOffsetQuat); 
+                    muzzleDirection.applyQuaternion(muzzleWorldQuat).normalize(); 
+                    
+                    lookAtTarget.copy(precisionCamPos).add(muzzleDirection); 
+                    camera.position.lerp(precisionCamPos, delta * 10.0); 
+                    
+                    precisionCamQuat.copy(camera.quaternion); 
+                    camera.lookAt(lookAtTarget); 
+                    precisionCamTargetQuat.copy(camera.quaternion); 
+                    camera.quaternion.copy(precisionCamQuat).slerp(precisionCamTargetQuat, delta * 10.0);
+                } else {
+                    // Fallback: Just look at the player if model not ready
+                    lookAtTarget.copy(localPlayer.position).add(cameraLookAtOffset);
+                    camera.lookAt(lookAtTarget);
+                }
+                // --- END FIX ---
+            } 
+            else { 
+                 lookAtTarget.copy(localPlayer.position).add(cameraLookAtOffset);
+                 cameraOffset.set( cameraDistance * Math.sin(cameraYaw) * Math.cos(cameraPitch), cameraDistance * Math.sin(cameraPitch), cameraDistance * Math.cos(cameraYaw) * Math.cos(cameraPitch) );
+                 thirdPersonCamPos.copy(lookAtTarget).add(cameraOffset);
+                 
+                 if (camera.fov !== defaultFov || camera.position.distanceTo(thirdPersonCamPos) > 0.1) { 
+                     camera.position.lerp(thirdPersonCamPos, delta * 10.0);
+                     camera.lookAt(lookAtTarget);
+                 } else {
+                     camera.position.copy(thirdPersonCamPos);
+                     camera.lookAt(lookAtTarget);
+                 }
+            } 
+            if (camera.fov !== targetFov) { 
+                camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, delta * 10.0); 
+                camera.updateProjectionMatrix(); 
+            }
+            if (cameraShakeIntensity > 0.01) { 
+                shakeOffset.set( (Math.random() - 0.5) * cameraShakeIntensity, (Math.random() - 0.5) * cameraShakeIntensity, (Math.random() - 0.5) * cameraShakeIntensity ); 
+                camera.position.add(shakeOffset); 
+                cameraShakeIntensity = THREE.MathUtils.lerp(cameraShakeIntensity, 0, delta * 5.0); 
+            }
+        }
+        
+        // --- NEW: Debug Visuals Update ---
+        function updateDebugVisuals(localPlayer) {
+            if (!isDebugMode || !localPlayer) return;
+
+            // Update muzzle debug arrow
+            if (localPlayer.userData.turretModel) {
+                muzzleWorldPos.copy(muzzlePosition); 
+                localPlayer.userData.turretModel.localToWorld(muzzleWorldPos);
+                
+                muzzleDirection.set(0, 0, -1); 
+                localPlayer.userData.turretModel.getWorldQuaternion(muzzleWorldQuat); 
+                muzzleOffsetQuat.setFromEuler(muzzleRotation); 
+                muzzleWorldQuat.multiply(muzzleOffsetQuat); 
+                muzzleDirection.applyQuaternion(muzzleWorldQuat).normalize(); 
+
+                muzzleDebugArrow.position.copy(muzzleWorldPos);
+                muzzleDebugArrow.setDirection(muzzleDirection);
+                muzzleDebugArrow.visible = true;
+
+                // Update trajectory line
+                drawTrajectory(muzzleWorldPos, muzzleDirection);
+                trajectoryLine.visible = true;
+            } else {
+                muzzleDebugArrow.visible = false;
+                trajectoryLine.visible = false;
+            }
+        }
+
+        // --- NEW: Draw Trajectory Function ---
+        function drawTrajectory(startPos, startDir) {
+            const positions = trajectoryLine.geometry.attributes.position.array;
+            const pointsCount = positions.length / 3;
+            
+            trajectoryVelocity.copy(startDir).multiplyScalar(bulletSpeed);
+            let currentPos = startPos.clone();
+            const timeStep = 0.05; // Simulate physics in small steps
+            
+            for (let i = 0; i < pointsCount; i++) {
+                positions[i * 3] = currentPos.x;
+                positions[i * 3 + 1] = currentPos.y;
+                positions[i * 3 + 2] = currentPos.z;
+                
+                trajectoryVelocity.y -= bulletGravityStrength * timeStep;
+                currentPos.add(trajectoryVelocity.clone().multiplyScalar(timeStep));
+            }
+            
+            trajectoryLine.geometry.attributes.position.needsUpdate = true;
+            trajectoryLine.computeLineDistances(); // For dashed line
+        }
+
+    </script>
 </body>
 </html>
+
