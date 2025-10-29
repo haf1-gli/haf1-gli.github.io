@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>funy tank game</title>
+    <title>FUNY TANK GAME - Multiplayer</title>
     <!-- We're going to need a different font for the UI -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -586,33 +586,45 @@
         // --- WebRTC State ---
         let peerConnection;
         let dataChannel;
-      // --- Replace this ENTIRE variable ---
 
-        const stunServers = {
+        // --- NEW: This function securely fetches credentials from our Vercel API ---
+        async function fetchTurnCredentials() {
+        console.log("Fetching TURN credentials from our API...");
+        try {
+            // This '/api/get-turn-credentials' URL works *because* we are on Vercel
+            const response = await fetch('/api/get-turn-credentials');
+
+            if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Our API failed: ${errorText}`);
+            }
+
+            const temporaryIceServers = await response.json();
+
+            // Add the regular Google STUN server as a fallback
+            return {
             iceServers: [
-                // Your old STUN servers (still good to have)
+                ...temporaryIceServers, // This is the secure array from Metered
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ],
+            //i cast, TURN SERVER ONLY.. since p2p is firewall blocked :(
+             iceTransportPolicy: 'relay'
+            };
 
-                // --- NEW: Free "Demo" TURN Server from Open Relay ---
-                // (These credentials are public and may be slow or unreliable)
-                {
-                    urls: "turn:openrelay.metered.ca:80",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                },
-                {
-                    urls: "turn:openrelay.metered.ca:443",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                },
-                {
-                    urls: "turns:openrelay.metered.ca:443?transport=tcp",
-                    username: "openrelayproject",
-                    credential: "openrelayproject"
-                }
-            ]
-        };
+        } catch (error) {
+            console.error("CRITICAL: Failed to fetch TURN credentials:", error);
+            // Fallback to just Google STUN if our server fails
+            return {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ],
+            //i cast, the same TURN SERVER ONLY.. since p2p is firewall is still blocked :( 
+             iceTransportPolicy: 'relay'
+            };
+        }
+        }
 
         let lastSentState = {};
         let lastReceivedState = {};
@@ -1228,12 +1240,14 @@
             localStorage.setItem('funyTankUser', JSON.stringify(localPlayer));
         }
 
-        // --- NEW: WebRTC P2P Logic ---
-
-        // --- Replace the ENTIRE setupHostConnection function ---
+        // --- the setupHostConnection function ---
         async function setupHostConnection() {
             isHost = true;
-            peerConnection = new RTCPeerConnection(stunServers);
+
+            // --- FIX: Fetch credentials first ---
+            const iceConfig = await fetchTurnCredentials();
+            peerConnection = new RTCPeerConnection(iceConfig);
+            // --- END FIX ---
 
             // Host creates the data channel
             dataChannel = peerConnection.createDataChannel('gameData');
@@ -1243,20 +1257,18 @@
             // --- FIX: Generate and seed the map (HOST) ---
             const mapSeed = Math.floor(Math.random() * 1000000); // Create seed
             setRandomSeed(mapSeed); // Use our NEW function
-            
+
             // --- FIX: Call the EXISTING removeMap function ---
             removeMap();
 
             generateMap(mainLoadingManager); // Host generates map now
             // Store seed to send to client
-            peerConnection.mapSeed = mapSeed; 
+            peerConnection.mapSeed = mapSeed;
             // --- END FIX ---
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     // This will fire multiple times. We need to wait until it's done.
-                    // The simplest (hacky) way for copy/paste is to just wait for all candidates.
-                    // But `setLocalDescription` promise already waits.
                 } else {
                     console.log("ICE Candidate gathering complete.");
                     // Now the localDescription contains all candidates.
@@ -1267,27 +1279,31 @@
                         copyButton.textContent = "Copy Offer";
                         copyButton.disabled = false;
                     }
-                    // --- END NEW ---
                 }
             };
 
-            // --- NEW: Loading button text ---
+            // ---  Loading button text ---
             const copyButton = document.querySelector("#host-wait-screen .lobby-button[onclick*='copyToClipboard']");
             if (copyButton) {
                 copyButton.textContent = "Loading offer...";
                 copyButton.disabled = true;
             }
-            // --- END NEW ---
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
-            
-            // The onicecandidate handler will populate the textarea
-        }
 
+            // The onicecandidate handler will populate the textarea
+        }       
+
+        // ---the ENTIRE setupJoinConnection function ---
         async function setupJoinConnection() {
             isHost = false;
-            peerConnection = new RTCPeerConnection(stunServers);
+
+            // --- FIX: Fetch credentials first ---
+            const iceConfig = await fetchTurnCredentials();
+            peerConnection = new RTCPeerConnection(iceConfig);
+            // --- END FIX ---
+
 
             // Joiner waits for the data channel
             peerConnection.ondatachannel = (event) => {
@@ -1300,19 +1316,54 @@
                 if (!event.candidate) {
                     console.log("ICE Candidate gathering complete.");
                     document.getElementById('answer-code').value = JSON.stringify(peerConnection.localDescription);
+                    const copyButton = document.querySelector("#join-lobby .lobby-button[onclick*='copyToClipboard']"); // Target copy button inside join lobby
+                    if (copyButton) {
+                        copyButton.textContent = "Copy Answer"; // Update text
+                        copyButton.disabled = false; // Enable button
+                    }
                     joinAnswerSection.classList.remove('hidden');
                 }
             };
-            
-            const offer = JSON.parse(document.getElementById('offer-input').value);
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
 
-            // The onicecandidate handler will populate the answer textarea
+            // --- NEW: Loading button text ---
+            const copyButton = document.querySelector("#join-lobby .lobby-button[onclick*='copyToClipboard']");
+            if (copyButton) {
+                copyButton.textContent = "Loading answer...";
+                copyButton.disabled = true;
+            }
+            // --- END NEW ---
+
+
+            const offerString = document.getElementById('offer-input').value; // Get offer from input
+            if (!offerString) {
+                alert("Please paste the offer code first!"); // Basic validation
+                // Reset button state if needed
+                if (copyButton) {
+                    copyButton.textContent = "Copy Answer";
+                    copyButton.disabled = true; // Still disabled until answer is generated
+                }
+                return;
+            }
+
+            try {
+                const offer = JSON.parse(offerString);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+            } catch (error) {
+                console.error("Error setting up client connection:", error);
+                alert("Invalid Offer Code or connection error.");
+                // Reset button state on error
+                if (copyButton) {
+                    copyButton.textContent = "Copy Answer";
+                    copyButton.disabled = true;
+                }
+            }
+
+
+            // The onicecandidate handler will populate the answer textarea and enable button
         }
-
         // --- Replace the ENTIRE setupDataChannelEvents function ---
         function setupDataChannelEvents() {
             dataChannel.onopen = () => {
