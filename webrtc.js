@@ -1,16 +1,13 @@
-// webrtc.js - WebRTC P2P connection, offer/answer exchange, data channels
+// webrtc.js - WebRTC P2P connection with full JSON copy/paste
 
 import {
     STUN_SERVERS,
     MSG_TYPES,
     ROLES,
-    generateCode,
-    validateCodeFormat,
     copyToClipboard,
     showElement,
     hideElement,
-    EventEmitter,
-    promiseWithTimeout
+    EventEmitter
 } from './utils.js';
 
 class WebRTCManager extends EventEmitter {
@@ -19,12 +16,8 @@ class WebRTCManager extends EventEmitter {
         
         this.peerConnection = null;
         this.dataChannel = null;
-        this.role = null; // 'host' or 'client'
+        this.role = null;
         this.isConnected = false;
-        this.pendingOffer = null;
-        this.pendingAnswer = null;
-        
-        // Connection state
         this.connectionTimeout = null;
         
         // DOM Elements
@@ -51,18 +44,20 @@ class WebRTCManager extends EventEmitter {
     setupListeners() {
         // Copy buttons
         this.copyOfferBtn.addEventListener('click', () => {
-            copyToClipboard(this.offerCodeDisplay.textContent);
+            const offerJSON = this.offerCodeDisplay.textContent;
+            copyToClipboard(offerJSON);
             this.copyOfferBtn.textContent = 'Copied!';
             setTimeout(() => {
-                this.copyOfferBtn.textContent = 'Copy Code';
+                this.copyOfferBtn.textContent = 'Copy Offer';
             }, 2000);
         });
         
         this.copyAnswerBtn.addEventListener('click', () => {
-            copyToClipboard(this.answerCodeDisplay.textContent);
+            const answerJSON = this.answerCodeDisplay.textContent;
+            copyToClipboard(answerJSON);
             this.copyAnswerBtn.textContent = 'Copied!';
             setTimeout(() => {
-                this.copyAnswerBtn.textContent = 'Copy Code';
+                this.copyAnswerBtn.textContent = 'Copy Answer';
             }, 2000);
         });
         
@@ -88,15 +83,6 @@ class WebRTCManager extends EventEmitter {
         this.offerInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.handleOfferSubmit();
         });
-        
-        // Auto-uppercase inputs
-        this.answerInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
-        });
-        
-        this.offerInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
-        });
     }
     
     // === HOST FLOW ===
@@ -120,16 +106,18 @@ class WebRTCManager extends EventEmitter {
             // Wait for ICE gathering to complete
             await this.waitForICEGathering();
             
-            // Encode offer to 6-digit code (simplified - store full offer in mapping)
-            const offerCode = this.encodeOffer(this.peerConnection.localDescription);
-            this.pendingOffer = this.peerConnection.localDescription;
+            // Display full offer JSON
+            const offerJSON = JSON.stringify(this.peerConnection.localDescription);
+            this.offerCodeDisplay.textContent = offerJSON;
+            this.offerCodeDisplay.style.fontSize = '0.7rem'; // Smaller for long JSON
+            this.offerCodeDisplay.style.wordBreak = 'break-all';
+            this.offerCodeDisplay.style.maxHeight = '150px';
+            this.offerCodeDisplay.style.overflow = 'auto';
             
-            // Display offer code
-            this.offerCodeDisplay.textContent = offerCode;
             this.offerCodeSection.style.display = 'block';
             this.answerInputSection.style.display = 'block';
             
-            this.updateStatus('Waiting for opponent to enter Answer Code...');
+            this.updateStatus('Share the Offer JSON with your opponent, then paste their Answer JSON below.');
             
             // Set connection timeout
             this.setConnectionTimeout();
@@ -141,24 +129,17 @@ class WebRTCManager extends EventEmitter {
     }
     
     async handleAnswerSubmit() {
-        const answerCode = this.answerInput.value.trim().toUpperCase();
+        const answerJSON = this.answerInput.value.trim();
         
-        if (!validateCodeFormat(answerCode)) {
-            this.updateStatus('Invalid code format. Must be 6 characters (A-Z, 0-9).');
+        if (!answerJSON) {
+            this.updateStatus('Please paste the Answer JSON from your opponent.');
             return;
         }
         
         this.updateStatus('Processing answer...');
         
         try {
-            // Decode answer (in real implementation, fetch from server/storage)
-            const answer = this.decodeAnswer(answerCode);
-            
-            if (!answer) {
-                this.updateStatus('Invalid answer code. Please check and try again.');
-                return;
-            }
-            
+            const answer = JSON.parse(answerJSON);
             await this.peerConnection.setRemoteDescription(answer);
             this.updateStatus('Connection established! Starting game...');
             
@@ -166,7 +147,7 @@ class WebRTCManager extends EventEmitter {
             
         } catch (error) {
             console.error('Answer processing error:', error);
-            this.updateStatus('Failed to process answer. Please try again.');
+            this.updateStatus('Invalid Answer JSON. Please check and try again.');
         }
     }
     
@@ -176,29 +157,23 @@ class WebRTCManager extends EventEmitter {
         this.showLobby('join');
         
         this.joinCodeSection.style.display = 'block';
-        this.updateStatus('Enter the host\'s Offer Code to connect.');
+        this.updateStatus('Paste the host\'s Offer JSON below.');
         
         this.setConnectionTimeout();
     }
     
     async handleOfferSubmit() {
-        const offerCode = this.offerInput.value.trim().toUpperCase();
+        const offerJSON = this.offerInput.value.trim();
         
-        if (!validateCodeFormat(offerCode)) {
-            this.updateStatus('Invalid code format. Must be 6 characters (A-Z, 0-9).');
+        if (!offerJSON) {
+            this.updateStatus('Please paste the Offer JSON from the host.');
             return;
         }
         
         this.updateStatus('Connecting...');
         
         try {
-            // Decode offer
-            const offer = this.decodeOffer(offerCode);
-            
-            if (!offer) {
-                this.updateStatus('Invalid offer code. Please check and try again.');
-                return;
-            }
+            const offer = JSON.parse(offerJSON);
             
             await this.createPeerConnection();
             await this.peerConnection.setRemoteDescription(offer);
@@ -210,19 +185,22 @@ class WebRTCManager extends EventEmitter {
             // Wait for ICE gathering
             await this.waitForICEGathering();
             
-            // Encode answer to 6-digit code
-            const answerCode = this.encodeAnswer(this.peerConnection.localDescription);
+            // Display answer JSON
+            const answerJSON = JSON.stringify(this.peerConnection.localDescription);
+            this.answerCodeDisplay.textContent = answerJSON;
+            this.answerCodeDisplay.style.fontSize = '0.7rem';
+            this.answerCodeDisplay.style.wordBreak = 'break-all';
+            this.answerCodeDisplay.style.maxHeight = '150px';
+            this.answerCodeDisplay.style.overflow = 'auto';
             
-            // Display answer code
-            this.answerCodeDisplay.textContent = answerCode;
             this.answerCodeSection.style.display = 'block';
             this.joinCodeSection.style.display = 'none';
             
-            this.updateStatus('Share the Answer Code with the host and wait...');
+            this.updateStatus('Share the Answer JSON with the host and wait for connection...');
             
         } catch (error) {
             console.error('Join error:', error);
-            this.updateStatus('Failed to connect. Please try again.');
+            this.updateStatus('Invalid Offer JSON or connection failed. Please try again.');
         }
     }
     
@@ -309,48 +287,6 @@ class WebRTCManager extends EventEmitter {
         });
     }
     
-    // === ENCODING/DECODING (Simplified) ===
-    // In production, you'd use a signaling server or manual exchange
-    // For this demo, we'll use localStorage as a simple exchange mechanism
-    
-    encodeOffer(offer) {
-        const code = generateCode();
-        // Store offer in localStorage with code as key
-        localStorage.setItem(`offer_${code}`, JSON.stringify(offer));
-        return code;
-    }
-    
-    decodeOffer(code) {
-        const stored = localStorage.getItem(`offer_${code}`);
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (e) {
-                return null;
-            }
-        }
-        return null;
-    }
-    
-    encodeAnswer(answer) {
-        const code = generateCode();
-        // Store answer in localStorage with code as key
-        localStorage.setItem(`answer_${code}`, JSON.stringify(answer));
-        return code;
-    }
-    
-    decodeAnswer(code) {
-        const stored = localStorage.getItem(`answer_${code}`);
-        if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (e) {
-                return null;
-            }
-        }
-        return null;
-    }
-    
     // === CONNECTION MANAGEMENT ===
     onConnectionEstablished() {
         this.updateStatus('Connected! Starting game...');
@@ -370,7 +306,7 @@ class WebRTCManager extends EventEmitter {
                 this.updateStatus('Connection timeout. Please try again.');
                 this.emit('timeout');
             }
-        }, 30000); // 30 seconds
+        }, 60000); // 60 seconds for manual copy/paste
     }
     
     cancelConnection() {
@@ -413,7 +349,7 @@ class WebRTCManager extends EventEmitter {
         showElement(this.lobbyScreen);
         
         if (type === 'host') {
-            this.lobbyTitle.textContent = 'Waiting for opponent...';
+            this.lobbyTitle.textContent = 'Hosting Game';
         } else {
             this.lobbyTitle.textContent = 'Join Game';
         }
