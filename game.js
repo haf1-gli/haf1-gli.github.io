@@ -20,6 +20,30 @@ import { menuManager } from './menu.js';
 import { webrtcManager } from './webrtc.js';
 import { cutsceneManager, setThreeReference } from './cutscene.js';
 
+// === GLOBAL ERROR HANDLER ===
+window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    const loadingError = document.getElementById('loading-error');
+    if (loadingError) {
+        loadingError.textContent = `Error: ${event.error.message}`;
+        loadingError.style.display = 'block';
+    }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    const loadingError = document.getElementById('loading-error');
+    if (loadingError) {
+        loadingError.textContent = `Promise Error: ${event.reason}`;
+        loadingError.style.display = 'block';
+    }
+});
+
+console.log('=== GAME.JS LOADED ===');
+console.log('Imports:', { THREE, MTLLoader, OBJLoader, GLTFLoader });
+console.log('Utils:', { COLORS, MSG_TYPES, ROLES, GAME_MODES });
+console.log('Managers:', { menuManager, webrtcManager, cutsceneManager });
+
 // === GAME STATE ===
 class GameState {
     constructor() {
@@ -159,14 +183,41 @@ function init() {
     
     // Loading Manager
     const loadingScreen = document.getElementById('loading-screen');
+    const loadingText = document.getElementById('loading-text');
+    const loadingProgress = document.getElementById('loading-progress');
+    const loadingStatus = document.getElementById('loading-status');
+    const loadingError = document.getElementById('loading-error');
+    
     mainLoadingManager = new THREE.LoadingManager();
+    
+    mainLoadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
+        console.log('Started loading:', url);
+        loadingStatus.textContent = `Loading: ${url.split('/').pop()}`;
+    };
+    
+    mainLoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+        const progress = Math.floor((itemsLoaded / itemsTotal) * 100);
+        loadingProgress.textContent = `${progress}%`;
+        loadingStatus.textContent = `Loading: ${url.split('/').pop()} (${itemsLoaded}/${itemsTotal})`;
+        console.log(`Loading progress: ${itemsLoaded}/${itemsTotal} - ${url}`);
+    };
+    
     mainLoadingManager.onLoad = () => {
-        console.log('Assets loaded');
+        console.log('All assets loaded successfully!');
+        loadingText.textContent = 'Assets Loaded!';
+        loadingStatus.textContent = 'Starting game...';
         loadingScreen.classList.add('hidden');
         setTimeout(() => {
             loadingScreen.style.display = 'none';
             showMainMenu();
         }, 1000);
+    };
+    
+    mainLoadingManager.onError = (url) => {
+        console.error('Error loading:', url);
+        loadingError.textContent = `Failed to load: ${url}`;
+        loadingError.style.display = 'block';
+        loadingStatus.textContent = 'Loading failed. Check console for details.';
     };
     
     // Scene setup
