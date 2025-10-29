@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FUNY TANK GAME - Multiplayer</title>
+    <title>funy tank game</title>
     <!-- We're going to need a different font for the UI -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -422,8 +422,13 @@
     <div id="loading-screen" class="ui-screen">
         <p>Loading Assets...</p>
         <div class="attributions">
-            <!-- (Attributions moved to save space, but they are still here) -->
-            <p>"Giant Low Poly Tree" (CC BY 4.0) by Sahir Virmani. ...etc...</p>
+            <p>V.0.2</p>
+            <p>"Giant Low Poly Tree" (<a href="https://skfb.ly/6tuTE" target="_blank">https://skfb.ly/6tuTE</a>) by Sahir Virmani is licensed under Creative Commons Attribution (<a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>).</p>
+            <p>"LOW POLY - INDUSTRIAL WAREHOUSE" (<a href="https://skfb.ly/osUIT" target="_blank">https://skfb.ly/osUIT</a>) by Colin.Greenall is licensed under Creative Commons Attribution (<a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>).</p>
+            <p>"Concrete Armored Barrier" (<a href="https://skfb.ly/oFtJX" target="_blank">https://skfb.ly/oFtJX</a>) by TampaJoey is licensed under Creative Commons Attribution (<a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>).</p>
+            <p>Explosion Sprite Sheet: "Explosion animations" by elnineo via <a href="https://opengameart.org/content/explosion-animations" target="_blank">opengameart.org</a> (CC0?)</p>
+            <p>Explosion Sound: Sound Effect by <a href="https://pixabay.com/users/ahmed_abdulaal-49290858/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=312361" target="_blank">Ahmed Abdulaal</a> from <a href="https://pixabay.com/sound-effects//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=312361" target="_blank">Pixabay</a> (Pixabay Content License)</p>
+            <p>Win Sound: Sound Effect from <a href="https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=100346" target="_blank">Pixabay</a></p>
         </div>
     </div>
     
@@ -581,12 +586,34 @@
         // --- WebRTC State ---
         let peerConnection;
         let dataChannel;
+      // --- Replace this ENTIRE variable ---
+
         const stunServers = {
             iceServers: [
+                // Your old STUN servers (still good to have)
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+
+                // --- NEW: Free "Demo" TURN Server from Open Relay ---
+                // (These credentials are public and may be slow or unreliable)
+                {
+                    urls: "turn:openrelay.metered.ca:80",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                },
+                {
+                    urls: "turn:openrelay.metered.ca:443",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                },
+                {
+                    urls: "turns:openrelay.metered.ca:443?transport=tcp",
+                    username: "openrelayproject",
+                    credential: "openrelayproject"
+                }
             ]
         };
+
         let lastSentState = {};
         let lastReceivedState = {};
         let remoteInputs = {};
