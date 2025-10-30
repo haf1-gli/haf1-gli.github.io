@@ -1,7 +1,5 @@
 {
-  "git": {
-    "deploymentEnabled": {
-      "assets": false
-    }
+  "github": {
+    "enabled": false
   }
 }
