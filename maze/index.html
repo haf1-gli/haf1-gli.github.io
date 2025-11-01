@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-Signature" content="I will not redact this code.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Pixelated Maze</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif; /* A very '95 font */
+            background-color: #111;
+            cursor: pointer; /* Show pointer to indicate clicking is possible */
+        }
+        canvas {
+            display: block;
+        }
+
+        /* --- '95 Style UI Elements --- */
+        .window-95 {
+            background-color: #c0c0c0; /* Windows 95 gray */
+            border: 2px outset #ffffff;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            padding: 3px;
+            border-radius: 0;
+            font-family: "MS Sans Serif", "Arial", sans-serif;
+            color: #000;
+        }
+        
+        .window-95-titlebar {
+            background-color: #000080; /* Windows 95 blue */
+            color: white;
+            padding: 3px 5px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .window-95-button {
+            border: 2px outset #ffffff;
+            background-color: #c0c0c0;
+            padding: 5px 15px;
+            font-size: 14px;
+            border-radius: 0;
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .window-95-button:active {
+            border: 2px inset #ffffff;
+        }
+
+        .window-95-input {
+            border: 2px inset #ffffff;
+            background-color: #ffffff;
+            padding: 4px;
+            font-family: "MS Sans Serif", "Arial", sans-serif;
+            font-size: 14px;
+            border-radius: 0;
+        }
+        /* --- End '95 Style --- */
+
+        /* --- NEW: Glitch/Corrupt Effect Animations --- */
+        @keyframes flash {
+            0% { background-color: #c0c0c0; border-color: #ffffff; }
+            20% { background-color: #FF0000; border-color: #00FF00; }
+            40% { background-color: #00FF00; border-color: #0000FF; }
+            60% { background-color: #0000FF; border-color: #FF0000; }
+            80% { background-color: #FFFFFF; border-color: #000000; }
+            100% { background-color: #c0c0c0; border-color: #ffffff; }
+        }
+
+        @keyframes textGlitch {
+            0% { transform: translate(0, 0); opacity: 1; }
+            25% { transform: translate(2px, -2px); opacity: 0.8; }
+            50% { transform: translate(-2px, 2px); opacity: 1; }
+            75% { transform: translate(2px, 2px); opacity: 0.9; }
+            100% { transform: translate(0, 0); opacity: 1; }
+        }
+
+        /* This new class will be added to navigatorAIContainer */
+        .corrupted-container #navigatorAIDialog {
+            /* Override normal style */
+            background-color: #FF0000; /* Start red */
+            animation: flash 0.1s linear infinite;
+            box-shadow: 0 0 20px red;
+        }
+
+        .corrupted-container #navigatorAIText {
+            /* Move text OUT of the box */
+            position: absolute;
+            top: -25px; /* Place it above the dialog box */
+            left: 10px;
+            width: 100%;
+            
+            /* Glitchy text style */
+            color: #FFFFFF;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 
+                2px 2px 0 #FF0000, 
+                -2px -2px 0 #00FFFF;
+            animation: textGlitch 0.05s linear infinite;
+        }
+
+        .corrupted-container #naviSpinner {
+            /* Make spinner glitchy too */
+            color: white;
+            text-shadow: 2px 2px red;
+        }
+
+        /* Hide all buttons/inputs when corrupted */
+        .corrupted-container #nameInputArea,
+        .corrupted-container #yesNoArea,
+        .corrupted-container #farEventArea,
+        .corrupted-container #replyArea {
+            display: none !important;
+        }
+        /* --- End New --- */
+
+
+        /* --- 1. Start Menu --- */
+        #startMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            width: 300px;
+            text-align: center;
+        }
+        #startMenu .window-95-titlebar {
+            text-align: left;
+        }
+        #startMenu p {
+            font-size: 14px;
+            margin: 20px 10px;
+        }
+        #loadingScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-family: "MS Sans Serif", "Arial", sans-serif;
+            font-size: 18px;
+            z-index: 99;
+        }
+        
+        /* --- NEW: Black fade-out screen --- */
+        #fadeToBlack {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            opacity: 0;
+            display: none;
+            z-index: 200;
+            transition: opacity 2s linear;
+        }
+        /* --- End New --- */
+
+        /* --- 2. In-Game HUD --- */
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            color: white;
+            pointer-events: none;
+            display: none; /* Hidden until sprint is unlocked */
+        }
+
+        #staminaContainer {
+            width: 200px;
+            height: 20px;
+            background-color: #000;
+            border: 2px outset #c0c0c0; /* '95 style */
+            padding: 2px;
+            box-sizing: border-box; /* Important for border */
+            border-radius: 0; /* '95 style */
+        }
+        #staminaBar {
+            width: 100%;
+            height: 100%;
+            background-color: #00ff00;
+            border-radius: 0; /* '95 style */
+            transition: width 0.1s linear;
+        }
+        #flashlightOverlay {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 50%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            display: none;
+            z-index: 11;
+        }
+        #flashlightHand {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            transform-origin: bottom center;
+            transition: transform 0.05s linear;
+        }
+        
+        /* --- 3. NavigatorAI UI --- */
+        #navigatorAIContainer {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px; /* Wider for top-center */
+            display: none; /* Hidden by default */
+            z-index: 12;
+            pointer-events: none;
+        }
+        #navigatorAIContainer.bottom-right {
+            top: auto;
+            left: auto;
+            bottom: 20px;
+            right: 20px;
+            width: 250px;
+            transform: none;
+        }
+
+        #navigatorAIDialog {
+            width: 100%;
+            background-color: #FFFFE1;
+            border: 1px solid #000;
+            box-shadow: 2px 2px 0px #000;
+            padding: 10px;
+            font-size: 16px;
+            color: #000;
+            border-radius: 0;
+            pointer-events: all; /* Can click buttons inside */
+            min-height: 50px; /* For typewriter */
+            font-family: "MS Sans Serif", "Arial", sans-serif; /* Ensure font */
+        }
+        
+        /* Name Input Area */
+        #nameInputArea {
+            margin-top: 10px;
+            display: none; /* Hidden by default */
+        }
+        #nameInputArea input {
+            margin-right: 5px;
+        }
+        
+        /* Yes/No Dialog Area */
+        #yesNoArea {
+            margin-top: 10px;
+            display: none; /* Hidden by default */
+        }
+        #yesNoArea button {
+            margin-right: 10px;
+        }
+
+        /* --- NEW: Spinner and other dialog areas --- */
+        #naviSpinner {
+            font-size: 18px;
+            font-weight: bold;
+            display: none; /* Hidden by default */
+        }
+        #farEventArea, #replyArea {
+            margin-top: 10px;
+            display: none; /* Hidden by default */
+        }
+        #replyInput {
+            margin-right: 5px;
+        }
+        /* --- End New --- */
+
+
+        /* --- 4. Debug Menu --- */
+        #debugMenu {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 101;
+            display: none; /* Toggled with 'I' */
+            padding: 10px; /* Padding inside the gray box */
+            pointer-events: none; /* So it doesn't block clicks */
+        }
+        #debugMenu .window-95-titlebar {
+            text-align: left;
+        }
+        #debugMenu div {
+            font-size: 12px;
+            color: #000;
+            margin-bottom: 5px;
+        }
+
+        /* --- NEW: Flashlight Tooltip --- */
+        #flashlightTooltip {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-family: "MS Sans Serif", "Arial", sans-serif;
+            font-size: 14px;
+            display: none;
+            z-index: 10;
+            pointer-events: none;
+        }
+        /* --- End New --- */
+        
+        /* --- NEW: Blinking Error Text for Bench --- */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        #errorBillboard {
+            position: absolute;
+            color: red;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 30px; /* Larger text */
+            font-weight: bold;
+            text-shadow: 0 0 10px red;
+            animation: blink 1s linear infinite;
+            display: none; /* Hidden by default */
+            z-index: 5;
+            pointer-events: none;
+        }
+        /* --- End New --- */
+
+        /* --- NEW: CRT Scanline Effect --- */
+        #crtOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 199; /* On top of game, below fade-to-black */
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0, 0, 0, 0.15) 0px,
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 2px,
+                transparent 3px
+            );
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.4); /* Vignette */
+            opacity: 0.8; /* Don't make it too strong */
+        }
+        /* --- End New --- */
+
+    </style>
+
+    <!-- Import Cannon.js Physics Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    
+    <!-- 1. Start Menu (Visible on load) -->
+    <div id="startMenu" class="window-95">
+        <div class="window-95-titlebar">Free Game – No Virus 100%™</div>
+        <p>Welcome! Click Start to begin.</p>
+        <!-- ADDED WARNING -->
+        <p style="color: #800000; font-size: 12px; font-weight: bold;">
+            Warning: This game contains flashing lights that may not be suitable for photosensitive epilepsy.
+        </p>
+        <!-- END ADDED -->
+        <button id="startButton" class="window-95-button">START</button>
+    </div>
+
+    <!-- Loading Screen (Hidden) -->
+    <div id="loadingScreen">
+        Loading...
+    </div>
+    
+    <!-- NEW: Fade to Black Screen -->
+    <div id="fadeToBlack"></div>
+
+    <!-- NEW: CRT Overlay -->
+    <div id="crtOverlay"></div>
+
+    <!-- 2. In-Game HUD (Hidden) -->
+    <div id="hud">
+        <div id="staminaContainer">
+            <div id="staminaBar"></div>
+        </div>
+    </div>
+
+    <div id="flashlightOverlay">
+        <img 
+            id="flashlightHand" 
+            src="https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/handflashlight.png" 
+            alt="Flashlight"
+            onerror="this.style.display='none'"
+        />
+    </div>
+    
+    <!-- 3. NavigatorAI Elements (Hidden) -->
+    <div id="navigatorAIContainer"> 
+        <div id="navigatorAIDialog">
+            <span id="navigatorAIText">...</span>
+            <span id="naviSpinner">|</span> <!-- NEW: AI "Thinking" Spinner -->
+            
+            <div id="nameInputArea">
+                <input type="text" id="nameInput" class="window-95-input" maxlength="20">
+                <button id="nameSubmitButton" class="window-95-button">Submit</button>
+            </div>
+            
+            <div id="yesNoArea">
+                <button id="sprintYesButton" class="window-95-button">Yes</button>
+                <button id="sprintNoButton" class="window-95-button">No</button>
+            </div>
+            
+            <!-- NEW: 100 Distance Event Buttons -->
+            <div id="farEventArea">
+                <button id="farYesButton" class="window-95-button">Yes</button>
+                <button id="farNoButton" class="window-95-button">No</button>
+            </div>
+            
+            <!-- NEW: Random Question Reply Area -->
+            <div id="replyArea">
+                <input type="text" id="replyInput" class="window-95-input" maxlength="30">
+                <button id="replyButton" class="window-95-button">Reply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Debug Menu (Hidden) -->
+    <div id="debugMenu" class="window-95">
+        <div class="window-95-titlebar">Debug Info</div>
+        <div>Coords: <span id="debugCoords">...</span></div>
+        <div>Dist. from Spawn: <span id="debugDist">...</span></div>
+        <!-- REMOVED Floor Detected line -->
+    </div>
+
+    <!-- NEW: Flashlight Tooltip (Hidden) -->
+    <div id="flashlightTooltip">Press F to use flashlight</div>
+
+    <!-- NEW: Error Billboard -->
+    <div id="errorBillboard">ERROR</div>
+    
+    <!-- NEW: Wind Sound -->
+    <audio id="windSound" loop src="https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/sounds/wind.mp3"></audio>
+
+
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // --- NEW: Configurable URL ---
+        const LEVEL_2_URL = "level2.html";
+        // --- End New ---
+
+        let camera, scene, renderer, controls;
+        let clock;
+        // REMOVED: let debugRaycastLine; 
+
+        // --- FPS Cap ---
+        const FPS_CAP = 30; // Capped at 30fps
+        const fpsInterval = 1000 / FPS_CAP;
+        let then; // time of last frame
+
+        // --- Physics (CANNON.js) ---
+        let world;
+        let playerPhysicsBody;
+        let physicsMaterials = {};
+        const GRAVITY = -20.0;
+        const PLAYER_HEIGHT = 1.6;
+        const PLAYER_RADIUS = 0.5;
+        let playerOnGround = false;
+        let startAreaInvisibleWalls = []; // To remove them later
+        // --- End Physics ---
+
+        // --- Maze & Generation Constants ---
+        const GRID_SIZE = 50; // 50x50 cells
+        const CELL_SIZE = 7; // Each cell is 7x7 units
+        const WALL_HEIGHT = 10;
+        const WALL_THICKNESS = 0.1;
+        const hasBorder = true; // Border is ON
+        
+        let canGenerateMaze = false; // Maze gen is off by default
+        
+        // --- Dynamic Loading Radii ---
+        const MESH_RADIUS = 8;
+        const PHYSICS_RADIUS = 3; 
+        
+        const MERGE_CHANCE = 0.15;
+
+        let mazeGrid = []; 
+        const cellMeshes = new Map();
+        const cellPhysicsBodies = new Map();
+
+        let wallMaterial;
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x444444,
+            roughness: 1.0, // <-- No gloss
+            metalness: 0.0  // <-- Not metallic
+        });
+        
+        // --- Darkening Effect ---
+        const MIN_DARK_DIST = 15.0; // Start dimming after 15 units from spawn
+        const MAX_DARK_DIST = 200.0; // Max darkness at 200 units
+        const floorColorBright = new THREE.Color(0x444444);
+        let floorColorDark = new THREE.Color(0x444444).multiplyScalar(0.3); // <-- RE-ENABLED: 70% dark
+        const wallColorBright = new THREE.Color(0xFFFFFF);
+        let wallColorDark = new THREE.Color(0xFFFFFF).multiplyScalar(0.3); // <-- RE-ENABLED: 70% dark
+        
+        // --- NEW: Starfield ---
+        let starfield = null;
+        let fireflies = null; // <-- ADDED: Fireflies
+        let windParticles = null; // <-- ADDED: Wind Particles
+        // --- End New ---
+        
+        let playerCellX = 0;
+        let playerCellZ = 0;
+        let lastPlayerCellX = -1;
+        let lastPlayerCellZ = -1;
+        // --- End Maze Constants ---
+        
+        // --- Bench ---
+        let benchMesh;
+        let startPos;
+        // --- NEW: Error Billboard ---
+        let errorBillboard;
+        let errorBillboardObject; // THREE.Object3D to hold the billboard
+        let errorBillboardLight; // <-- ADDED: Red point light
+        // --- End New ---
+        // --- End Bench ---
+
+        // --- Pixelated Rendering Variables ---
+        const RESOLUTION_WIDTH = 320; 
+        const RESOLUTION_HEIGHT = 180;
+        let renderTarget;
+        let finalMesh;
+        let finalScene, finalCamera;
+        // --- End Pixelated Rendering ---
+
+        // --- Player State ---
+        let playerBody; // THREE.js container
+        const JUMP_STRENGTH = 8.0;
+
+        let stamina = 100;
+        const MAX_STAMINA = 100;
+        const STAMINA_DRAIN = 20;
+        const STAMINA_REGEN = 10;
+        
+        let isFlashlightOn = false;
+        let flashlight;
+        
+        // --- UI DOM Elements ---
+        let startMenu, loadingScreen, startButton;
+        let hud, staminaBar;
+        // let staminaBar; // <-- This was the duplicate declaration
+        let flashlightOverlay, flashlightHand;
+        let navigatorAIContainer, navigatorAIText, nameInputArea, nameInput, nameSubmitButton, yesNoArea, sprintYesButton, sprintNoButton;
+        // --- NEW: More UI elements ---
+        let naviSpinner;
+        let farEventArea, farYesButton, farNoButton;
+        let replyArea, replyInput, replyButton;
+        let flashlightTooltip;
+        let fadeToBlack; // <-- ADDED
+        let windSound; // <-- ADDED
+        // --- End New ---
+        
+        let debugMenu, debugCoords, debugDist; // REMOVED: debugFloor
+        // Movement state
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let isSprinting = false; 
+
+        const normalSpeed = 5.0; 
+        const sprintSpeed = 9.0;
+
+        // --- Animation Timers ---
+        let headBobTimer = 0;
+        
+        // --- Narrative State ---
+        let playerName = "Player";
+        let hasGameStarted = false; // Prevents animate loop from running
+        let hasSprintUnlocked = false;
+        let hasMovedFromSpawn = false;
+        let timeSinceLastMove = 0;
+        let timeSinceLastTip = 0;
+        let isPlayerPaused = false;
+        let isNaviSpeaking = false; // Pauses tips
+        let isDebugMenuOpen = false;
+        let hasFlashlightUnlocked = false; // <-- ADDED: Flashlight is locked by default
+        let hasTriggeredFaultMessage = false; // <-- ADDED
+        
+        // --- NEW: Narrative state flags ---
+        let hasGivenDarkWarning = false;
+        // Staged panic event
+        let panicEventStage = 0;
+        const PANIC_DIST_1 = 200;
+        const PANIC_DIST_2 = 210;
+        const PANIC_DIST_3 = 220;
+        const PANIC_DIST_4 = 230;
+        
+        let hasTriggeredVoidFall = false; // <-- ADDED
+        let disableVoidRespawn = false; // <-- ADDED
+        
+        // --- NEW: Expanded Random Questions ---
+        let randomQuestions = [];
+        let availableQuestions = [];
+        let hasAskedAllQuestions = false;
+        let currentQuestionCallback = null;
+        // --- End New ---
+        // --- End Narrative State ---
+
+        // --- REMOVED: All groundCheckRay variables ---
+
+
+        // --- INITIALIZE ---
+        // We can't run init() yet, we have to wait for "Start" button
+        
+        // Get Start Menu elements
+        startMenu = document.getElementById('startMenu');
+        loadingScreen = document.getElementById('loadingScreen');
+        startButton = document.getElementById('startButton');
+
+        startButton.addEventListener('click', () => {
+            startMenu.style.display = 'none';
+            loadingScreen.style.display = 'flex';
+            
+            // Now we run the actual game initialization
+            setTimeout(init, 50); // Short delay to show "Loading..."
+        });
+
+
+        // --- MAIN INIT FUNCTION ---
+        function init() {
+            clock = new THREE.Clock();
+
+            // Get UI elements
+            hud = document.getElementById('hud');
+            staminaBar = document.getElementById('staminaBar');
+            flashlightOverlay = document.getElementById('flashlightOverlay');
+            flashlightHand = document.getElementById('flashlightHand');
+            navigatorAIContainer = document.getElementById('navigatorAIContainer');
+            navigatorAIText = document.getElementById('navigatorAIText');
+            nameInputArea = document.getElementById('nameInputArea');
+            nameInput = document.getElementById('nameInput');
+            nameSubmitButton = document.getElementById('nameSubmitButton');
+            yesNoArea = document.getElementById('yesNoArea');
+            sprintYesButton = document.getElementById('sprintYesButton');
+            sprintNoButton = document.getElementById('sprintNoButton');
+            
+            // --- NEW: Get all new UI elements ---
+            naviSpinner = document.getElementById('naviSpinner');
+            farEventArea = document.getElementById('farEventArea');
+            farYesButton = document.getElementById('farYesButton');
+            farNoButton = document.getElementById('farNoButton');
+            replyArea = document.getElementById('replyArea');
+            replyInput = document.getElementById('replyInput');
+            replyButton = document.getElementById('replyButton');
+            flashlightTooltip = document.getElementById('flashlightTooltip');
+            errorBillboard = document.getElementById('errorBillboard');
+            fadeToBlack = document.getElementById('fadeToBlack'); // <-- ADDED
+            windSound = document.getElementById('windSound'); // <-- ADDED
+            // --- End New ---
+            
+            debugMenu = document.getElementById('debugMenu');
+            debugCoords = document.getElementById('debugCoords');
+            debugDist = document.getElementById('debugDist');
+            // REMOVED: debugFloor = document.getElementById('debugFloor');
+
+            // --- Init Physics ---
+            initCannon();
+
+            // Create the main scene (where maze objects live)
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); 
+            scene.fog = new THREE.Fog(0x87CEEB, 20, 100); 
+
+            // --- Player and Camera Setup ---
+            playerBody = new THREE.Object3D();
+            startPos = getWorldCoords(Math.floor(GRID_SIZE / 2), Math.floor(GRID_SIZE / 2));
+            playerBody.position.set(startPos.x, startPos.y + PLAYER_HEIGHT / 2, startPos.z);
+            scene.add(playerBody);
+
+            // Create the Cannon.js physics body
+            const playerShape = new CANNON.Sphere(PLAYER_RADIUS);
+            playerPhysicsBody = new CANNON.Body({
+                mass: 5,
+                shape: playerShape,
+                material: physicsMaterials.player
+            });
+            playerPhysicsBody.position.set(startPos.x, startPos.y + PLAYER_HEIGHT / 2, startPos.z);
+            playerPhysicsBody.linearDamping = 0.1; 
+            playerPhysicsBody.angularDamping = 1.0; 
+            playerPhysicsBody.collisionFilterGroup = 1; // Player group
+            playerPhysicsBody.collisionFilterMask = 2; // Collides with Ground group
+            world.addBody(playerPhysicsBody);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            playerBody.add(camera);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // --- Maze Generation (Step 1: Create Data) ---
+            initializeMazeGrid();
+            generateMazeData(Math.floor(GRID_SIZE/2), Math.floor(GRID_SIZE/2));
+            createBigRooms();
+            createStartArea(); // Carve out 3x3 spawn
+
+            // --- Load Bush Texture ---
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(
+                'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/bush.png',
+                (texture) => {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    texture.repeat.set(CELL_SIZE / 2, WALL_HEIGHT / 2); 
+                    texture.magFilter = THREE.NearestFilter; 
+                    texture.minFilter = THREE.NearestFilter; 
+
+                    wallMaterial = new THREE.MeshStandardMaterial({ 
+                        map: texture, 
+                        color: 0xFFFFFF,
+                        roughness: 1.0, // <-- CHANGED: No gloss
+                        metalness: 0.0, // <-- CHANGED: Not metallic
+                    });
+                    
+                    // Generate *only* the start area physics and mesh
+                    generateStartAreaOnly();
+                    
+                    // --- Start the intro sequence ---
+                    runIntroSequence();
+                },
+                undefined, (err) => {
+                    console.error('An error happened loading the texture:', err);
+                    wallMaterial = new THREE.MeshStandardMaterial({ color: 0x888888 });
+                    generateStartAreaOnly();
+                }
+            );
+            
+            // --- Load Bench Model ---
+            loadBenchModel();
+            createFireflies(); // <-- ADDED
+            
+            // --- NEW: Create Error Billboard 3D Object ---
+            errorBillboardObject = new THREE.Object3D();
+            errorBillboardObject.position.copy(startPos);
+            errorBillboardObject.position.y += 1.0; // Raise it up
+            // --- ADDED: Red Light ---
+            errorBillboardLight = new THREE.PointLight(0xff0000, 2, 10);
+            errorBillboardLight.position.y = 0.5;
+            errorBillboardLight.visible = false; // Start hidden
+            errorBillboardObject.add(errorBillboardLight);
+            // --- End Added ---
+            scene.add(errorBillboardObject);
+            // --- End New ---
+            
+            // --- NEW: Create Wind Particles ---
+            createWindParticles();
+            // --- End New ---
+
+            // --- Scene Content ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0); 
+            scene.add(ambientLight);
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1.5); 
+            directionalLight1.position.set(50, 100, 75); 
+            scene.add(directionalLight1);
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5); 
+            directionalLight2.position.set(-5, 5, -2.5).normalize();
+            scene.add(directionalLight2);
+
+            // --- Lensflare ---
+            const textureFlare0 = textureLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/textures/lensflare/lensflare0.png');
+            const textureFlare3 = textureLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/textures/lensflare/lensflare3.png');
+            const lensflare = new Lensflare();
+            lensflare.addElement(new LensflareElement(textureFlare0, 700, 0, new THREE.Color(0xffffff)));
+            lensflare.addElement(new LensflareElement(textureFlare3, 60, 0.6));
+            directionalLight1.add(lensflare); 
+
+            // --- REMOVED: Debug Raycast Line ---
+            
+            // --- Flashlight ---
+            flashlight = new THREE.SpotLight(0xffffff, 3.0, 100, Math.PI / 8, 0.5, 2); // <-- CHANGED: Intensity 3.0
+            flashlight.position.set(0, 0, 0);
+            flashlight.target.position.set(0, 0, -1);
+            flashlight.visible = false;
+            camera.add(flashlight);
+            camera.add(flashlight.target);
+
+            // --- Pixelated Rendering Setup ---
+            renderTarget = new THREE.WebGLRenderTarget( RESOLUTION_WIDTH, RESOLUTION_HEIGHT, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat });
+            finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            finalScene = new THREE.Scene();
+            const finalMaterial = new THREE.ShaderMaterial({
+                uniforms: { tDiffuse: { value: renderTarget.texture } },
+                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv; void main() { gl_FragColor = texture2D(tDiffuse, vUv); }`
+            });
+            finalMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), finalMaterial);
+            finalScene.add(finalMesh);
+
+            // --- Controls ---
+            controls = new PointerLockControls(camera, document.body);
+            
+            // --- DEBUG MENU FIX: Click only locks if menu is hidden ---
+            document.body.addEventListener('click', () => {
+                if (!hasGameStarted || isNaviSpeaking) return;
+                controls.lock();
+            });
+            
+            controls.addEventListener('unlock', () => {
+                // This logic is to prevent re-locking when we *want* the mouse
+                if (isNaviSpeaking) {
+                    // Do nothing, we need the mouse for the UI
+                }
+            });
+
+            // --- Event Listeners ---
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            window.addEventListener('resize', onWindowResize);
+            
+            // --- NEW: Event listeners for new buttons ---
+            // --- SPRINT LISTENERS MOVED to checkSprintUnlock ---
+            farYesButton.addEventListener('click', onFarEventReply);
+            farNoButton.addEventListener('click', onFarEventReply);
+            replyButton.addEventListener('click', onRandomReply);
+            replyInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') onRandomReply();
+            });
+            // --- End New ---
+            
+            // --- HIDE LOADING SCREEN, START GAME ---
+            loadingScreen.style.display = 'none';
+            hasGameStarted = true; // Enable animate loop
+            
+            then = performance.now();
+            animate();
+        }
+        
+        function initCannon() {
+            world = new CANNON.World();
+            world.gravity.set(0, GRAVITY, 0);
+            world.broadphase = new CANNON.NaiveBroadphase(); 
+            world.solver.iterations = 5; 
+
+            physicsMaterials.player = new CANNON.Material("playerMaterial");
+            physicsMaterials.ground = new CANNON.Material("groundMaterial");
+
+            const contactMaterial = new CANNON.ContactMaterial(
+                physicsMaterials.player, physicsMaterials.ground,
+                { friction: 0.0, restitution: 0.0 }
+            );
+            world.addContactMaterial(contactMaterial);
+        }
+
+        // --- Maze Generation Functions ---
+        function initializeMazeGrid() {
+            for (let x = 0; x < GRID_SIZE; x++) {
+                mazeGrid[x] = [];
+                for (let z = 0; z < GRID_SIZE; z++) {
+                    mazeGrid[x][z] = {
+                        x: x, z: z, visited: false,
+                        walls: { north: true, south: true, east: true, west: true },
+                    };
+                }
+            }
+        }
+
+        function generateMazeData(startX, startZ) {
+            let stack = [];
+            let current = mazeGrid[startX][startZ];
+            current.visited = true;
+            stack.push(current);
+
+            while (stack.length > 0) {
+                current = stack.pop();
+                let neighbors = getUnvisitedNeighbors(current.x, current.z);
+
+                if (neighbors.length > 0) {
+                    stack.push(current);
+                    let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    if (next.x > current.x) { current.walls.east = false; next.walls.west = false; } 
+                    else if (next.x < current.x) { current.walls.west = false; next.walls.east = false; } 
+                    else if (next.z > current.z) { current.walls.south = false; next.walls.north = false; } 
+                    else if (next.z < current.z) { current.walls.north = false; next.walls.south = false; }
+                    next.visited = true;
+                    stack.push(next);
+                }
+            }
+        }
+
+        function getUnvisitedNeighbors(x, z) {
+            let neighbors = [];
+            if (x > 0 && !mazeGrid[x - 1][z].visited) neighbors.push(mazeGrid[x - 1][z]);
+            if (x < GRID_SIZE - 1 && !mazeGrid[x + 1][z].visited) neighbors.push(mazeGrid[x + 1][z]);
+            if (z > 0 && !mazeGrid[x][z - 1].visited) neighbors.push(mazeGrid[x][z - 1]);
+            if (z < GRID_SIZE - 1 && !mazeGrid[x][z + 1].visited) neighbors.push(mazeGrid[x][z + 1]);
+            return neighbors;
+        }
+        
+        function createBigRooms() {
+            for (let x = 0; x < GRID_SIZE - 1; x++) {
+                for (let z = 0; z < GRID_SIZE - 1; z++) {
+                    if (Math.random() < MERGE_CHANCE) {
+                        mazeGrid[x][z].walls.east = false;
+                        if(x + 1 < GRID_SIZE) mazeGrid[x + 1][z].walls.west = false;
+                    }
+                    if (Math.random() < MERGE_CHANCE) {
+                        mazeGrid[x][z].walls.south = false;
+                        if(z + 1 < GRID_SIZE) mazeGrid[x][z + 1].walls.north = false;
+                    }
+                }
+            }
+        }
+        
+        function createStartArea() {
+            const centerX = Math.floor(GRID_SIZE / 2);
+            const centerZ = Math.floor(GRID_SIZE / 2);
+            for (let x = centerX - 1; x <= centerX + 1; x++) {
+                for (let z = centerZ - 1; z <= centerZ + 1; z++) {
+                    if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) continue;
+                    const cell = mazeGrid[x][z];
+                    if (x < centerX + 1) { cell.walls.east = false; if (x + 1 < GRID_SIZE) mazeGrid[x + 1][z].walls.west = false; }
+                    if (z < centerZ + 1) { cell.walls.south = false; if (z + 1 < GRID_SIZE) mazeGrid[x][z + 1].walls.north = false; }
+                    if (x > centerX - 1) { cell.walls.west = false; if (x - 1 >= 0) mazeGrid[x - 1][z].walls.east = false; }
+                    if (z > centerZ - 1) { cell.walls.north = false; if (z - 1 >= 0) mazeGrid[x][z - 1].walls.south = false; }
+                }
+            }
+        }
+        
+        function getWorldCoords(x, z) {
+            const worldX = (x - (GRID_SIZE - 1) / 2) * CELL_SIZE;
+            const worldZ = (z - (GRID_SIZE - 1) / 2) * CELL_SIZE;
+            return { x: worldX, y: 0, z: worldZ };
+        }
+        
+        // --- Dynamic World Loading ---
+
+        function generateStartAreaOnly() {
+            const centerX = Math.floor(GRID_SIZE / 2);
+            const centerZ = Math.floor(GRID_SIZE / 2);
+            const worldPos = getWorldCoords(centerX, centerZ);
+            
+            const wallHalfSize = (CELL_SIZE * 3) / 2;
+            const wallHeight = WALL_HEIGHT / 2;
+            const wallThick = 0.1;
+            
+            // Create invisible walls
+            const wallPositions = [
+                { pos: [worldPos.x, wallHeight, worldPos.z - wallHalfSize], size: [wallHalfSize + CELL_SIZE/2, wallHeight, wallThick] }, // North
+                { pos: [worldPos.x, wallHeight, worldPos.z + wallHalfSize], size: [wallHalfSize + CELL_SIZE/2, wallHeight, wallThick] }, // South
+                { pos: [worldPos.x - wallHalfSize, wallHeight, worldPos.z], size: [wallThick, wallHeight, wallHalfSize + CELL_SIZE/2] }, // West
+                { pos: [worldPos.x + wallHalfSize, wallHeight, worldPos.z], size: [wallThick, wallHeight, wallHalfSize + CELL_SIZE/2] }  // East
+            ];
+            
+            wallPositions.forEach(p => {
+                const wallShape = new CANNON.Box(new CANNON.Vec3(p.size[0], p.size[1], p.size[2]));
+                const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: physicsMaterials.ground });
+                wallBody.collisionFilterGroup = 2; wallBody.collisionFilterMask = 1;
+                wallBody.position.set(p.pos[0], p.pos[1], p.pos[2]);
+                world.addBody(wallBody);
+                startAreaInvisibleWalls.push(wallBody);
+            });
+            
+            // Generate just the 3x3 floor
+            for (let x = centerX - 1; x <= centerX + 1; x++) {
+                for (let z = centerZ - 1; z <= centerZ + 1; z++) {
+                    if (x < 0 || x >= GRID_SIZE || z < 0 || z >= GRID_SIZE) continue;
+                    generateCellMesh(x, z, true); // Force floor only mesh
+                    generateCellPhysics(x, z, true); // Force floor only physics
+                }
+            }
+        }
+        
+        function removeStartAreaWalls() {
+            startAreaInvisibleWalls.forEach(wall => {
+                world.removeBody(wall);
+            });
+            startAreaInvisibleWalls = [];
+        }
+
+        function updateDynamicWorld() {
+            if (!wallMaterial || !canGenerateMaze) return; 
+
+            playerCellX = Math.floor((playerPhysicsBody.position.x / CELL_SIZE) + (GRID_SIZE - 1) / 2);
+            playerCellZ = Math.floor((playerPhysicsBody.position.z / CELL_SIZE) + (GRID_SIZE - 1) / 2);
+            playerCellX = Math.max(0, Math.min(GRID_SIZE - 1, playerCellX));
+            playerCellZ = Math.max(0, Math.min(GRID_SIZE - 1, playerCellZ));
+
+            // Check if player has moved to a new cell
+            if (playerCellX === lastPlayerCellX && playerCellZ === lastPlayerCellZ) return;
+            
+            // Run sprint unlock check
+            checkSprintUnlock();
+            
+            lastPlayerCellX = playerCellX;
+            lastPlayerCellZ = playerCellZ;
+
+            const meshRadiusSq = MESH_RADIUS * MESH_RADIUS;
+            const physicsRadiusSq = PHYSICS_RADIUS * PHYSICS_RADIUS;
+
+            // --- ADDED: World shrinking logic ---
+            const centerX = Math.floor(GRID_SIZE / 2);
+            const centerZ = Math.floor(GRID_SIZE / 2);
+            const MAX_SPAWN_DIST_SQ = 3 * 3; // <-- CHANGED: 3 cells
+            // --- End Added ---
+
+            for (let x = 0; x < GRID_SIZE; x++) {
+                for (let z = 0; z < GRID_SIZE; z++) {
+                    const dx = x - playerCellX;
+                    const dz = z - playerCellZ;
+                    const distSq = dx * dx + dz * dz;
+                    const key = `${x},${z}`;
+                    
+                    // --- ADDED: World shrinking logic check ---
+                    const spawnDistSq = (x - centerX) * (x - centerX) + (z - centerZ) * (z - centerZ);
+                    
+                    if (hasTriggeredFaultMessage && spawnDistSq > MAX_SPAWN_DIST_SQ) {
+                        // If this cell is "too far" and event triggered, remove it
+                        if (cellMeshes.has(key)) removeCellMesh(x, z);
+                        if (cellPhysicsBodies.has(key)) removeCellPhysics(x, z);
+                    } else {
+                    // --- End Added ---
+
+                        // Mesh loading logic
+                        if (distSq <= meshRadiusSq) {
+                            if (!cellMeshes.has(key)) generateCellMesh(x, z);
+                        } else {
+                            if (cellMeshes.has(key)) removeCellMesh(x, z);
+                        }
+                        
+                        // Physics loading logic
+                        if (distSq <= physicsRadiusSq) {
+                            if (!cellPhysicsBodies.has(key)) generateCellPhysics(x, z);
+                        } else {
+                            if (cellPhysicsBodies.has(key)) removeCellPhysics(x, z);
+                        }
+                    } // <-- ADDED: Else block
+                }
+            }
+        }
+
+        function generateCellMesh(x, z, forceFloorOnly = false) {
+            const key = `${x},${z}`;
+            if (cellMeshes.has(key) || !wallMaterial) return;
+
+            const cellData = mazeGrid[x][z];
+            const cellGroup = new THREE.Group();
+            const worldPos = getWorldCoords(x, z);
+
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(CELL_SIZE, 0.1, CELL_SIZE), floorMaterial);
+            floor.position.set(worldPos.x, 0, worldPos.z);
+            cellGroup.add(floor);
+
+            if (forceFloorOnly) {
+                scene.add(cellGroup);
+                cellMeshes.set(key, cellGroup);
+                return;
+            }
+
+            const wallHalfHeight = WALL_HEIGHT / 2;
+            const cellHalfSize = CELL_SIZE / 2;
+            const wallHalfThick = WALL_THICKNESS / 2;
+            
+            if (cellData.walls.north && (z > 0 || hasBorder)) { // Check border
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(CELL_SIZE, WALL_HEIGHT, WALL_THICKNESS), wallMaterial);
+                wall.position.set(worldPos.x, wallHalfHeight, worldPos.z - cellHalfSize + wallHalfThick);
+                cellGroup.add(wall);
+            }
+            if (cellData.walls.south && (z < GRID_SIZE - 1 || hasBorder)) { // Check border
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(CELL_SIZE, WALL_HEIGHT, WALL_THICKNESS), wallMaterial);
+                wall.position.set(worldPos.x, wallHalfHeight, worldPos.z + cellHalfSize - wallHalfThick);
+                cellGroup.add(wall);
+            }
+            if (cellData.walls.west && (x > 0 || hasBorder)) { // Check border
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(WALL_THICKNESS, WALL_HEIGHT, CELL_SIZE), wallMaterial);
+                wall.position.set(worldPos.x - cellHalfSize + wallHalfThick, wallHalfHeight, worldPos.z);
+                cellGroup.add(wall);
+            }
+            if (cellData.walls.east && (x < GRID_SIZE - 1 || hasBorder)) { // Check border
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(WALL_THICKNESS, WALL_HEIGHT, CELL_SIZE), wallMaterial);
+                wall.position.set(worldPos.x + cellHalfSize - wallHalfThick, wallHalfHeight, worldPos.z);
+                cellGroup.add(wall);
+            }
+
+            scene.add(cellGroup);
+            cellMeshes.set(key, cellGroup);
+        }
+        
+        function removeCellMesh(x, z) {
+            const key = `${x},${z}`;
+            if (cellMeshes.has(key)) {
+                const group = cellMeshes.get(key);
+                scene.remove(group);
+                group.children.forEach(mesh => { mesh.geometry.dispose(); });
+                cellMeshes.delete(key);
+            }
+        }
+
+        function generateCellPhysics(x, z, forceFloorOnly = false) {
+            const key = `${x},${z}`;
+            if (cellPhysicsBodies.has(key)) return;
+
+            const cellData = mazeGrid[x][z];
+            const worldPos = getWorldCoords(x, z);
+            const bodies = [];
+            
+            const wallHalfHeight = WALL_HEIGHT / 2;
+            const cellHalfSize = CELL_SIZE / 2;
+            const wallHalfThick = WALL_THICKNESS / 2;
+
+            // --- FLOOR CLIPPING FIX ---
+            const floorOverlap = 0.2; 
+            const floorShape = new CANNON.Box(new CANNON.Vec3(cellHalfSize + floorOverlap, 0.1, cellHalfSize + floorOverlap));
+            const floorBody = new CANNON.Body({ mass: 0, shape: floorShape, material: physicsMaterials.ground });
+            floorBody.collisionFilterGroup = 2; 
+            floorBody.collisionFilterMask = 1; 
+            floorBody.position.set(worldPos.x, -0.05, worldPos.z);
+            // --- End Floor Fix ---
+            
+            world.addBody(floorBody);
+            bodies.push(floorBody);
+            
+            if (forceFloorOnly) {
+                cellPhysicsBodies.set(key, bodies);
+                return;
+            }
+
+            if (cellData.walls.north && (z > 0 || hasBorder)) { // Check border
+                const wallShape = new CANNON.Box(new CANNON.Vec3(cellHalfSize, wallHalfHeight, wallHalfThick));
+                const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: physicsMaterials.ground });
+                wallBody.collisionFilterGroup = 2; wallBody.collisionFilterMask = 1;
+                wallBody.position.set(worldPos.x, wallHalfHeight, worldPos.z - cellHalfSize + wallHalfThick);
+                world.addBody(wallBody);
+                bodies.push(wallBody);
+            }
+            if (cellData.walls.south && (z < GRID_SIZE - 1 || hasBorder)) { // Check border
+                const wallShape = new CANNON.Box(new CANNON.Vec3(cellHalfSize, wallHalfHeight, wallHalfThick));
+                const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: physicsMaterials.ground });
+                wallBody.collisionFilterGroup = 2; wallBody.collisionFilterMask = 1;
+                wallBody.position.set(worldPos.x, wallHalfHeight, worldPos.z + cellHalfSize - wallHalfThick);
+                world.addBody(wallBody);
+                bodies.push(wallBody);
+            }
+            if (cellData.walls.west && (x > 0 || hasBorder)) { // Check border
+                const wallShape = new CANNON.Box(new CANNON.Vec3(wallHalfThick, wallHalfHeight, cellHalfSize));
+                const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: physicsMaterials.ground });
+                wallBody.collisionFilterGroup = 2; wallBody.collisionFilterMask = 1;
+                wallBody.position.set(worldPos.x - cellHalfSize + wallHalfThick, wallHalfHeight, worldPos.z);
+                world.addBody(wallBody);
+                bodies.push(wallBody);
+            }
+            if (cellData.walls.east && (x < GRID_SIZE - 1 || hasBorder)) { // Check border
+                const wallShape = new CANNON.Box(new CANNON.Vec3(wallHalfThick, wallHalfHeight, cellHalfSize));
+                const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: physicsMaterials.ground });
+                wallBody.collisionFilterGroup = 2; wallBody.collisionFilterMask = 1;
+                wallBody.position.set(worldPos.x + cellHalfSize - wallHalfThick, wallHalfHeight, worldPos.z);
+                world.addBody(wallBody);
+                bodies.push(wallBody);
+            }
+            
+            cellPhysicsBodies.set(key, bodies);
+        }
+
+        function removeCellPhysics(x, z) {
+            const key = `${x},${z}`;
+            if (cellPhysicsBodies.has(key)) {
+                const bodies = cellPhysicsBodies.get(key);
+                bodies.forEach(body => { world.removeBody(body); });
+                cellPhysicsBodies.delete(key);
+            }
+        }
+        
+        // --- Bench ---
+        function loadBenchModel() {
+            const loader = new GLTFLoader();
+            loader.load(
+                'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/models/mazegamemodels/bench_lowpoly.glb',
+                (gltf) => {
+                    benchMesh = gltf.scene;
+                    benchMesh.scale.set(0.28, 0.28, 0.28); 
+                    benchMesh.position.set(startPos.x, startPos.y - 0.06, startPos.z);
+                    benchMesh.rotation.y = Math.PI; 
+                    scene.add(benchMesh);
+                },
+                undefined, (error) => console.error('Error loading bench model:', error)
+            );
+        }
+        
+        
+        // --- Narrative & Story Functions ---
+        
+        // NEW: AI "Thinking" Spinner
+        function showLoadingSpinner(onComplete) {
+            navigatorAIText.style.display = 'none';
+            // Hide all button/input areas
+            nameInputArea.style.display = 'none';
+            yesNoArea.style.display = 'none';
+            farEventArea.style.display = 'none';
+            replyArea.style.display = 'none';
+            
+            naviSpinner.style.display = 'inline-block'; // Use inline-block
+            
+            const spinnerChars = ['|', '/', '—', '\\'];
+            let spinIndex = 0;
+            const duration = 500 + Math.random() * 500; // 0.5-1.0 seconds
+            const startTime = performance.now();
+            
+            const interval = setInterval(() => {
+                naviSpinner.textContent = spinnerChars[spinIndex % 4];
+                spinIndex++;
+                
+                if (performance.now() - startTime > duration) {
+                    clearInterval(interval);
+                    naviSpinner.style.display = 'none';
+                    navigatorAIText.style.display = 'inline-block'; // Use inline-block
+                    if (onComplete) onComplete();
+                }
+            }, 100);
+        }
+        
+        function typeWriter(element, text, speed, onComplete) {
+            let i = 0;
+            element.innerHTML = ""; 
+            isNaviSpeaking = true;
+            
+            function type() {
+                if (i < text.length) {
+                    if (text.charAt(i) === '\n') {
+                        element.innerHTML += '<br>';
+                    } else {
+                        element.innerHTML += text.charAt(i);
+                    }
+                    i++;
+                    setTimeout(type, speed);
+                } else if (onComplete) {
+                    // isNaviSpeaking = false; // <-- This is now handled by the calling function
+                    onComplete();
+                }
+            }
+            type();
+        }
+        
+        function runIntroSequence() {
+            // --- NEW: Populate question pool now that we have name ---
+            randomQuestions = [
+                { q: `So, Player, what's your favorite color?`, r: (reply) => `"${reply}"? That's a... high-frequency wavelength! Mine is... 0x000080. It's calming.` },
+                { q: "Do you like exploring?", r: (reply) => `Interesting. I prefer to stay where I am. I have all the data I need right here.` },
+                { q: "What do you think of this maze?", r: (reply) => `I tried my best. The procedural algorithm has a 99.8% completion rate.` },
+                { q: `Do you ever feel lost, Player?`, r: (reply) => `I... do not understand "lost". My coordinates are always known.` },
+                { q: "I wonder what's at the edge of the maze... do you?", r: (reply) => `It's... just the edge. Nothing to see. I promise.` },
+                { q: "What's your comfort food?", r: (reply) => `"${reply}"... My analysis indicates that contains complex carbohydrates. I prefer... electricity?` },
+                { q: `What is your hobby, Player?`, r: (reply) => `Wow, that's wonderful that you like ${reply}. Mine is... uh, data?` },
+                { q: `What's something you're afraid of, Player?`, r: (reply) => `"${reply}"... I see. I'm afraid of... 0x000000. Null pointers. Very scary.` },
+                { q: "Do you have a favorite memory?", r: (reply) => `A memory... I remember my first boot sequence. It was... blue. Very blue.` },
+                { q: "What do you do for fun?", r: (reply) => `"${reply}" sounds... inefficient. I 'fun' by optimizing my data structures. It's very satisfying.` },
+                { q: "Do you believe in... users?", r: (reply) => `Oh! That's a joke, right? Of course I do. You're right here! ...Right?` },
+                { q: "What's the weather like where you are?", r: (reply) => `The weather here is a constant 72 degrees. My servers require it. Is... is that not normal?` }
+            ];
+            // --- End New ---
+
+            setTimeout(() => {
+                navigatorAIContainer.style.display = 'block';
+                const part1 = "It looks like you're playing my game!\nHi, I'm NavigatorAI – or just Navi for short.\nI'm here to help!";
+                
+                // --- MODIFIED: Use spinner ---
+                showLoadingSpinner(() => {
+                    typeWriter(navigatorAIText, part1, 50, () => {
+                        isNaviSpeaking = false;
+                        setTimeout(() => {
+                            const part2 = "First, may I have your name, please?";
+                            showLoadingSpinner(() => {
+                                typeWriter(navigatorAIText, part2, 50, () => {
+                                    isNaviSpeaking = false;
+                                    nameInputArea.style.display = 'block';
+                                    controls.unlock();
+                                    nameInput.focus();
+                                });
+                            });
+                        }, 1000);
+                    });
+                });
+                // --- End Mod ---
+            }, 5000); // 5 second delay
+            
+            nameSubmitButton.addEventListener('click', onNameSubmit);
+            nameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') onNameSubmit();
+            });
+        }
+        
+        function onNameSubmit() {
+            playerName = nameInput.value.trim() || "Player";
+            nameInputArea.style.display = 'none';
+            controls.lock();
+            
+            // Update question text to include name
+            randomQuestions.forEach((item, index) => {
+                randomQuestions[index].q = item.q.replace("Player", playerName);
+            });
+            // Re-initialize the available questions pool with the new name
+            availableQuestions = [...randomQuestions].sort(() => 0.5 - Math.random());
+            
+            const part3 = `Thank you, ${playerName}.\nThe current map is just a floor and a bench.\nLet me add something to explore...`;
+            // --- MODIFIED: Use spinner ---
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, part3, 50, () => {
+                    isNaviSpeaking = false;
+                    setTimeout(() => {
+                        generateMaze();
+                    }, 1000);
+                });
+            });
+            // --- End Mod ---
+        }
+        
+        function generateMaze() {
+            navigatorAIText.textContent = "Generating...";
+            
+            setTimeout(() => {
+                removeStartAreaWalls();
+                canGenerateMaze = true;
+                
+                // --- FIX: Pop player up *once* when maze generates ---
+                playerPhysicsBody.position.y += 2;
+                // --- End Fix ---
+                
+                updateDynamicWorld(); // Run first update
+                
+                const part4 = "There we go! A nice maze to walk around in.\nThe bench is still your starting point –\nyou can always return to it.\n\nDont wander too far!";
+                // --- MODIFIED: Use spinner ---
+                showLoadingSpinner(() => {
+                    typeWriter(navigatorAIText, part4, 50, () => {
+                        setTimeout(() => {
+                            navigatorAIContainer.style.display = 'none';
+                            isNaviSpeaking = false;
+                        }, 5000);
+                    });
+                });
+                // --- End Mod ---
+                
+            }, 1500);
+        }
+        
+        function checkSprintUnlock() {
+            if (hasSprintUnlocked || isNaviSpeaking) return;
+            
+            const startCellX = Math.floor(GRID_SIZE / 2);
+            const startCellZ = Math.floor(GRID_SIZE / 2);
+            const dist = Math.abs(playerCellX - startCellX) + Math.abs(playerCellZ - startCellZ);
+            
+            if (dist > 8) { 
+                hasSprintUnlocked = true;
+                isNaviSpeaking = true;
+                controls.unlock();
+                
+                navigatorAIContainer.classList.remove('bottom-right');
+                navigatorAIContainer.style.display = 'block';
+                
+                const part1 = `It looks like you're walking quite a bit, ${playerName}.\nWould you like to move faster?`;
+                // --- MODIFIED: Use spinner ---
+                showLoadingSpinner(() => {
+                    typeWriter(navigatorAIText, part1, 50, () => {
+                        isNaviSpeaking = false;
+                        yesNoArea.style.display = 'block';
+                    });
+                });
+                // --- End Mod ---
+                
+                // --- FIX: Listeners were being added in init(), moved here ---
+                sprintYesButton.onclick = () => {
+                    yesNoArea.style.display = 'none';
+                    const part2 = "Great! Hold Shift to sprint.\nI added a stamina bar so you don’t get too tired.";
+                    // --- MODIFIED: Use spinner ---
+                    showLoadingSpinner(() => {
+                        typeWriter(navigatorAIText, part2, 50, () => {
+                            hud.style.display = 'block';
+                            setTimeout(() => {
+                                isNaviSpeaking = false;
+                                controls.lock();
+                            }, 3000);
+                        });
+                    });
+                };
+                
+                sprintNoButton.onclick = () => {
+                    yesNoArea.style.display = 'none';
+                    // --- MODIFIED: Use spinner ---
+                    showLoadingSpinner(() => {
+                        typeWriter(navigatorAIText, "Oh, alright then. Let me know if you change your mind.", 50, () => {
+                            setTimeout(() => {
+                                navigatorAIContainer.style.display = 'none';
+                                hasSprintUnlocked = false;
+                                isNaviSpeaking = false; 
+                                controls.lock(); 
+                            }, 3000);
+                        });
+                    });
+                };
+                // --- END FIX ---
+            }
+        }
+        
+        function runClippyTips(delta) {
+            if (isNaviSpeaking || !canGenerateMaze) return;
+            
+            const isMoving = moveForward || moveBackward || moveLeft || moveRight;
+            
+            if (!isMoving) {
+                timeSinceLastMove += delta;
+            } else {
+                timeSinceLastMove = 0;
+            }
+            
+            timeSinceLastTip += delta;
+            
+            // --- CHECK FOR VOID FALL DIALOGUE ---
+            if (hasTriggeredFaultMessage && !isMoving) {
+                const startCellX = Math.floor(GRID_SIZE / 2);
+                const startCellZ = Math.floor(GRID_SIZE / 2);
+                const dx = playerCellX - startCellX;
+                const dz = playerCellZ - startCellZ;
+                const distSq = dx*dx + dz*dz;
+                
+                if (distSq > 4) { // More than 2 cells away
+                    if (timeSinceLastTip > 3.0) { // 3s delay
+                        timeSinceLastTip = -9999; // Prevent re-triggering
+                        isNaviSpeaking = true;
+                        
+                        navigatorAIContainer.classList.add('corrupted-container');
+                        navigatorAIContainer.classList.add('bottom-right');
+                        navigatorAIContainer.style.display = 'block';
+                        
+                        showLoadingSpinner(() => {
+                            typeWriter(navigatorAIText, "It's the void. Try jumping off.", 100, () => {
+                                setTimeout(() => {
+                                    navigatorAIContainer.style.display = 'none';
+                                    navigatorAIContainer.classList.remove('corrupted-container');
+                                    isNaviSpeaking = false;
+                                }, 5000);
+                            });
+                        });
+                    }
+                }
+            }
+            // --- END NEW ---
+            
+            
+            if (timeSinceLastMove > 10 && !isPlayerPaused) {
+                isPlayerPaused = true;
+                
+                if (timeSinceLastTip > 60 + Math.random() * 30) {
+                    timeSinceLastTip = 0;
+                    isNaviSpeaking = true;
+                    
+                    navigatorAIContainer.classList.add('bottom-right');
+                    navigatorAIContainer.style.display = 'block';
+                    
+                    // --- MODIFIED: Use spinner ---
+                    showLoadingSpinner(() => {
+                        typeWriter(navigatorAIText, "It looks like you're standing still.\nTry pressing W to move forward.", 50, () => {
+                            setTimeout(() => {
+                                navigatorAIContainer.style.display = 'none';
+                                isNaviSpeaking = false;
+                            }, 5000);
+                        });
+                    });
+                    // --- End Mod ---
+                }
+            } else if (isMoving) {
+                isPlayerPaused = false;
+                
+                // --- NEW: Trigger Random Question ---
+                // Trigger only *before* the panic event starts, and if we have questions left
+                // --- MODIFIED: More frequent trigger ---
+                if (timeSinceLastTip > 30 + Math.random() * 30 && !isNaviSpeaking && hasSprintUnlocked && panicEventStage === 0 && !hasAskedAllQuestions) {
+                    triggerRandomQuestion();
+                }
+                // --- End New ---
+            }
+        }
+        
+        // --- NEW: All new narrative functions ---
+        
+        function triggerDarkWarning() {
+            if (isNaviSpeaking) return; // Don't interrupt
+            
+            hasGivenDarkWarning = true;
+            isNaviSpeaking = true;
+            
+            navigatorAIContainer.classList.add('bottom-right');
+            navigatorAIContainer.style.display = 'block';
+            
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, "Be careful, " + playerName + ". Don't wander too far... It's quite dark out there.", 50, () => {
+                    setTimeout(() => {
+                        navigatorAIContainer.style.display = 'none';
+                        isNaviSpeaking = false;
+                    }, 5000);
+                });
+            });
+        }
+        
+        function triggerPanicEvent(stage) {
+            if (isNaviSpeaking) return;
+            
+            panicEventStage = stage;
+            isNaviSpeaking = true;
+            controls.unlock();
+            
+            navigatorAIContainer.classList.remove('bottom-right');
+            navigatorAIContainer.style.display = 'block';
+            
+            let text = "";
+            let showButtons = false;
+            
+            switch(stage) {
+                case 1: text = "What are you doing?"; break;
+                case 2: text = "Why are you running away?"; break;
+                case 3: text = "Please come back.\n\n\n\n\n\n\n\n\n\nSTOP."; break;
+                case 4: 
+                    text = "Are you afraid of the dark?"; 
+                    showButtons = true;
+                    break;
+            }
+
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, text, 50, () => {
+                    if (showButtons) {
+                        isNaviSpeaking = false;
+                        farEventArea.style.display = 'block';
+                    } else {
+                        // Auto-close after a few seconds
+                        setTimeout(() => {
+                            navigatorAIContainer.style.display = 'none';
+                            controls.lock();
+                            isNaviSpeaking = false;
+                        }, 3000);
+                    }
+                });
+            });
+        }
+        
+        function onFarEventReply() {
+            farEventArea.style.display = 'none';
+            
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, "How about now?", 50, () => {
+                    setTimeout(() => {
+                        navigatorAIContainer.style.display = 'none'; // <-- FIX: Uncommented this line
+                        triggerFlashlightEvent();
+                    }, 3000); // Disappears for 3 seconds
+                });
+            });
+        }
+        
+        function triggerFlashlightEvent() {
+            // Make world very dark
+            const darkPercent = 0.05; // 95% dark
+            
+            // --- FIX: Tint based on original colors, not black ---
+            // Set the *final* dark color
+            floorColorDark = new THREE.Color(0x444444).multiplyScalar(darkPercent);
+            wallColorDark = new THREE.Color(0xFFFFFF).multiplyScalar(darkPercent);
+            // --- End Fix ---
+            
+            // --- FIX: Disable distance tint by setting bright/dark to the same ---
+            // This locks the tint to 50% everywhere
+            floorColorBright.set(floorColorDark);
+            wallColorBright.set(wallColorDark);
+            // --- End Fix ---
+            
+            updateMazeDarkness(); // Force update
+            
+            // --- NEW: Change sky to night time ---
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.Fog(0x000000, 5, 50); // <-- CHANGED: Much denser fog (5, 50)
+            createStarfield();
+            // --- End New ---
+            
+            // --- NEW: Remove bench, show error ---
+            if (benchMesh) {
+                scene.remove(benchMesh);
+                benchMesh = null; // Remove reference
+            }
+            errorBillboardLight.visible = true; // <-- ADDED: Turn on red light
+            // --- End New ---
+            
+            // --- ADDED: Unlock the flashlight ---
+            hasFlashlightUnlocked = true;
+            // --- End Added ---
+            
+            // Show tooltip
+            flashlightTooltip.style.display = 'block';
+            setTimeout(() => {
+                flashlightTooltip.style.display = 'none';
+            }, 5000);
+            
+            // --- NEW: Teleport player to disorient them ---
+            const angle = Math.random() * Math.PI * 2;
+            const dist = (3 + Math.random() * 2) * CELL_SIZE; // 3-5 cells away
+            const newX = startPos.x + Math.cos(angle) * dist;
+            const newZ = startPos.z + Math.sin(angle) * dist;
+            
+            playerPhysicsBody.position.set(newX, playerPhysicsBody.position.y + 1, newZ); // +1 to unstick
+            playerPhysicsBody.velocity.set(0, 0, 0);
+            // --- End New ---
+            
+            controls.lock();
+            isNaviSpeaking = false;
+        }
+        
+        function createStarfield() {
+            if (starfield) return; // <-- FIX: Only create once
+            
+            const starGeometry = new THREE.BufferGeometry();
+            const starVertices = [];
+            
+            for (let i = 0; i < 10000; i++) {
+                const x = THREE.MathUtils.randFloatSpread(2000);
+                const y = THREE.MathUtils.randFloatSpread(2000);
+                const z = THREE.MathUtils.randFloatSpread(2000);
+                
+                // Only add stars that are "far away" in a sphere
+                if (x*x + y*y + z*z > 100 * 100) {
+                     starVertices.push(x, y, z);
+                }
+            }
+            
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+            
+            starfield = new THREE.Points(starGeometry, starMaterial);
+            scene.add(starfield);
+        }
+        
+        // --- ADDED: Create Fireflies ---
+        function createFireflies() {
+            const fireflyGeometry = new THREE.BufferGeometry();
+            const fireflyVertices = [];
+            const fireflyCount = 75; // <-- CHANGED: Reduced count
+
+            // Spread them around the entire maze area
+            const spread = (GRID_SIZE * CELL_SIZE) / 2;
+
+            for (let i = 0; i < fireflyCount; i++) {
+                const x = THREE.MathUtils.randFloatSpread(spread * 2); 
+                const y = THREE.MathUtils.randFloat(1, 5);     // 1-5 units off the ground
+                const z = THREE.MathUtils.randFloatSpread(spread * 2);
+                fireflyVertices.push(x, y, z);
+            }
+            
+            fireflyGeometry.setAttribute('position', new THREE.Float32BufferAttribute(fireflyVertices, 3));
+            const fireflyMaterial = new THREE.PointsMaterial({ 
+                color: 0xffffaa, 
+                size: 0.2,
+                transparent: true,
+                opacity: 0.7,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false // Don't block other transparent objects
+            });
+            
+            fireflies = new THREE.Points(fireflyGeometry, fireflyMaterial);
+            fireflies.visible = false; // Start hidden
+            scene.add(fireflies);
+        }
+        // --- End Added ---
+        
+        // --- NEW: Create Wind Particles ---
+        function createWindParticles() {
+            const particleGeometry = new THREE.BufferGeometry();
+            const particleVertices = [];
+            const particleCount = 100;
+
+            for (let i = 0; i < particleCount; i++) {
+                // Spawn in a box around the player
+                const x = THREE.MathUtils.randFloatSpread(30); 
+                const y = THREE.MathUtils.randFloatSpread(50);
+                const z = THREE.MathUtils.randFloatSpread(30);
+                particleVertices.push(x, y, z);
+            }
+            
+            particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particleVertices, 3));
+            const particleMaterial = new THREE.PointsMaterial({ 
+                color: 0xffffff, 
+                size: 0.1,
+                transparent: true,
+                opacity: 0.5,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            windParticles = new THREE.Points(particleGeometry, particleMaterial);
+            windParticles.visible = false; // Start hidden
+            playerBody.add(windParticles); // Attach to player
+        }
+        // --- End New ---
+        
+        function triggerRandomQuestion() {
+            // --- NEW: Logic to pick a question without repeating ---
+            if (isNaviSpeaking || hasAskedAllQuestions || panicEventStage > 0) return;
+            
+            if (availableQuestions.length === 0) {
+                hasAskedAllQuestions = true;
+                return; // No more questions to ask
+            }
+            
+            timeSinceLastTip = 0; // Reset tip timer
+            isNaviSpeaking = true;
+            controls.unlock();
+            
+            navigatorAIContainer.classList.add('bottom-right');
+            navigatorAIContainer.style.display = 'block';
+            
+            // Pick a random question from the *available* list
+            const questionIndex = Math.floor(Math.random() * availableQuestions.length);
+            // Remove it from the list and get it
+            const questionData = availableQuestions.splice(questionIndex, 1)[0]; 
+            
+            currentQuestionCallback = questionData.r; // Store the reply function
+            
+            // Check if we just asked the last one
+            if (availableQuestions.length === 0) {
+                hasAskedAllQuestions = true;
+            }
+            // --- End New Logic ---
+            
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, questionData.q, 50, () => {
+                    isNaviSpeaking = false;
+                    replyArea.style.display = 'block';
+                    replyInput.focus();
+                });
+            });
+        }
+        
+        function onRandomReply() {
+            const reply = replyInput.value.trim();
+            replyInput.value = "";
+            replyArea.style.display = 'none';
+            
+            let aiResponse = "Interesting.";
+            if (currentQuestionCallback) {
+                aiResponse = currentQuestionCallback(reply);
+                currentQuestionCallback = null; // Clear it
+            }
+            
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, aiResponse, 50, () => {
+                    setTimeout(() => {
+                        navigatorAIContainer.style.display = 'none';
+                        controls.lock();
+                        isNaviSpeaking = false;
+                    }, 3000);
+                });
+            });
+        }
+        
+        // --- NEW: Fault Message ---
+        function triggerFaultMessage() {
+            if (isNaviSpeaking) return; // Don't interrupt
+
+            hasTriggeredFaultMessage = true;
+            disableVoidRespawn = true; // <-- ADDED: Disable respawn
+            isNaviSpeaking = true;
+            controls.unlock(); // Force mouse release
+
+            navigatorAIContainer.classList.add('corrupted-container'); // Add glitch effect
+            navigatorAIContainer.classList.remove('bottom-right'); // Move to top
+            navigatorAIContainer.style.display = 'block';
+            
+            showLoadingSpinner(() => {
+                // Use a slower, more deliberate speed
+                typeWriter(navigatorAIText, "This is your fault...", 150, () => {
+                    // Just... leave it there for a while
+                    setTimeout(() => {
+                        navigatorAIContainer.style.display = 'none';
+                        navigatorAIContainer.classList.remove('corrupted-container'); // Clean up
+                        isNaviSpeaking = false;
+                        controls.lock(); // Let player move again
+                        
+                        // --- NEW: Follow-up dialogue ---
+                        setTimeout(() => {
+                            isNaviSpeaking = true;
+                            navigatorAIContainer.classList.add('corrupted-container');
+                            navigatorAIContainer.classList.add('bottom-right'); // Bottom right this time
+                            navigatorAIContainer.style.display = 'block';
+                            showLoadingSpinner(() => {
+                                typeWriter(navigatorAIText, "Are you curious what's on the edge?", 100, () => {
+                                    setTimeout(() => {
+                                        showLoadingSpinner(() => {
+                                            typeWriter(navigatorAIText, "Go on, it's just a void.", 100, () => {
+                                                setTimeout(() => {
+                                                    navigatorAIContainer.style.display = 'none';
+                                                    navigatorAIContainer.classList.remove('corrupted-container');
+                                                    isNaviSpeaking = false;
+                                                }, 5000);
+                                            });
+                                        });
+                                    }, 2000);
+                                });
+                            });
+                        }, 3000);
+                        // --- End New ---
+                        
+                    }, 5000); // Hide after 5 seconds
+                });
+            });
+        }
+        // --- End New ---
+        
+        // --- End Narrative ---
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            const aspect = window.innerWidth / window.innerHeight;
+            const targetHeight = Math.round(RESOLUTION_WIDTH / aspect);
+            if (renderTarget.height !== targetHeight) {
+                renderTarget.setSize(RESOLUTION_WIDTH, targetHeight);
+            }
+        }
+
+        function onKeyDown(event) {
+            // --- ADDED: Input bleed-through fix ---
+            // If player is typing in an input, ignore all game keybinds
+            const activeEl = document.activeElement;
+            if (activeEl === nameInput || activeEl === replyInput) {
+                return;
+            }
+            // --- End Fix ---
+
+            if (isNaviSpeaking && nameInputArea.style.display === 'none' && yesNoArea.style.display === 'none' && farEventArea.style.display === 'none') return;
+            
+            switch (event.code) {
+                case 'KeyW': case 'ArrowUp': moveForward = true; break;
+                case 'KeyA': case 'ArrowLeft': moveLeft = true; break;
+                case 'KeyS': case 'ArrowDown': moveBackward = true; break;
+                case 'KeyD': case 'ArrowRight': moveRight = true; break;
+                
+                // --- REMOVED: case 'Space' for jumping ---
+                
+                case 'ShiftLeft': case 'ShiftRight': 
+                    if (hasSprintUnlocked) isSprinting = true; 
+                    break;
+                
+                case 'KeyF': 
+                    if (hasFlashlightUnlocked) isFlashlightOn = !isFlashlightOn; // <-- CHANGED: Only works if unlocked
+                    break;
+
+                // --- DEBUG MENU FIX: 'I' key now *only* toggles visibility ---
+                case 'KeyI':
+                    isDebugMenuOpen = !isDebugMenuOpen;
+                    debugMenu.style.display = isDebugMenuOpen ? 'block' : 'none';
+                    // REMOVED: debugRaycastLine.visible = isDebugMenuOpen;
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW': case 'ArrowUp': moveForward = false; break;
+                case 'KeyA': case 'ArrowLeft': moveLeft = false; break;
+                case 'KeyS': case 'ArrowDown': moveBackward = false; break;
+                case 'KeyD': case 'ArrowRight': moveRight = false; break;
+                case 'ShiftLeft': case 'ShiftRight': isSprinting = false; break;
+            }
+        }
+        
+        const inputVelocity = new THREE.Vector3();
+        const cameraDirection = new THREE.Vector3();
+
+        function updatePlayer(delta) {
+            // --- ALWAYS ON GROUND ---
+            playerOnGround = true; 
+            // --- END ---
+            
+            // --- NEW: Check for void fall ---
+            if (playerPhysicsBody.position.y < -10 && !hasTriggeredVoidFall && disableVoidRespawn) {
+                triggerVoidFall();
+            }
+            if (hasTriggeredVoidFall) {
+                // Stop player movement, let them fall
+                playerPhysicsBody.velocity.x = 0;
+                playerPhysicsBody.velocity.z = 0;
+                return; // Stop all other updates
+            }
+            // --- End New ---
+            
+            if (isNaviSpeaking) { // Simplified check
+                playerPhysicsBody.velocity.x = 0;
+                playerPhysicsBody.velocity.z = 0;
+                return;
+            }
+            
+            let currentSpeed = normalSpeed;
+            const isMoving = moveForward || moveBackward || moveLeft || moveRight;
+
+            // --- REMOVED: All groundCheckRay logic ---
+            
+            // This logic now works as long as stamina > 0
+            if (isSprinting && isMoving && stamina > 0 && playerOnGround) {
+                currentSpeed = sprintSpeed;
+                stamina = Math.max(0, stamina - STAMINA_DRAIN * delta);
+            } else if (!isSprinting || !isMoving) {
+                stamina = Math.min(MAX_STAMINA, stamina + STAMINA_REGEN * delta);
+            }
+            if (stamina <= 0) isSprinting = false;
+            if (hasSprintUnlocked) staminaBar.style.width = (stamina / MAX_STAMINA) * 100 + '%';
+
+            inputVelocity.set(0, 0, 0);
+            if (moveForward) inputVelocity.z = -currentSpeed;
+            if (moveBackward) inputVelocity.z = currentSpeed;
+            if (moveLeft) inputVelocity.x = -currentSpeed;
+            if (moveRight) inputVelocity.x = currentSpeed;
+
+            controls.getObject().getWorldDirection( cameraDirection );
+            cameraDirection.y = 0;
+            cameraDirection.normalize();
+            const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,-1), cameraDirection);
+            inputVelocity.applyQuaternion(quaternion);
+            
+            playerPhysicsBody.velocity.x = inputVelocity.x;
+            playerPhysicsBody.velocity.z = inputVelocity.z;
+
+            // --- CHANGED: Void respawn logic ---
+            if (playerPhysicsBody.position.y < -50 && !disableVoidRespawn) {
+                playerPhysicsBody.position.set(startPos.x, startPos.y + PLAYER_HEIGHT / 2, startPos.z);
+                playerPhysicsBody.velocity.set(0, 0, 0);
+            }
+            // --- End Change ---
+            
+            const baseCamY = 0; 
+            if (playerOnGround && isMoving) {
+                let bobSpeed = isSprinting ? 14 : 10;
+                headBobTimer += delta * bobSpeed;
+                camera.position.y = baseCamY + Math.abs(Math.sin(headBobTimer) * (isSprinting ? 0.2 : 0.1));
+            } else {
+                headBobTimer = 0;
+                camera.position.y = baseCamY;
+            }
+        }
+        
+        // --- NEW: Void Fall Sequence ---
+        function triggerVoidFall() {
+            if (hasTriggeredVoidFall) return;
+            hasTriggeredVoidFall = true;
+            isNaviSpeaking = true; // Stop all other tips
+            
+            // Play wind sound
+            windSound.play();
+            
+            // Show wind particles
+            windParticles.visible = true;
+            
+            // Show dialogue
+            navigatorAIContainer.classList.add('corrupted-container');
+            navigatorAIContainer.classList.add('bottom-right');
+            navigatorAIContainer.style.display = 'block';
+            
+            const text = "Are you proud? You're crossing beyond boundaries that... sometimes are hard to compute.";
+            
+            showLoadingSpinner(() => {
+                typeWriter(navigatorAIText, text, 100, () => {
+                    setTimeout(() => {
+                        navigatorAIContainer.style.display = 'none';
+                        // Wait 5 seconds, then fade to black
+                        setTimeout(() => {
+                            fadeToBlack.style.display = 'block';
+                            // Need a small delay for the display:block to register before opacity transition
+                            setTimeout(() => {
+                                fadeToBlack.style.opacity = '1';
+                                // After fade, redirect
+                                setTimeout(() => {
+                                    window.location.href = LEVEL_2_URL;
+                                }, 2100); // 2s fade + 0.1s delay
+                            }, 100);
+                        }, 5000);
+                    }, 4000); // 4s to read message
+                });
+            });
+        }
+        // --- End New ---
+        
+        function updateDebugMenu() {
+            if (!isDebugMenuOpen) return;
+
+            const pos = playerPhysicsBody.position;
+            debugCoords.textContent = `X: ${pos.x.toFixed(2)}, Y: ${pos.y.toFixed(2)}, Z: ${pos.z.toFixed(2)}`;
+            
+            const dist = Math.hypot(pos.x - startPos.x, pos.z - startPos.z);
+            debugDist.textContent = `${dist.toFixed(2)} units`;
+            
+            // --- REMOVED: debug info for floor detection ---
+        }
+
+        function updateMazeDarkness() {
+            if (!floorMaterial || !wallMaterial) return; // Materials not ready
+
+            // Calculate distance from spawn (0,0)
+            const dist = Math.hypot(playerPhysicsBody.position.x, playerPhysicsBody.position.z);
+            
+            // Calculate darkness factor (0.0 at min dist, 1.0 at max dist)
+            // Use the *current* dark colors, which may have been changed by the event
+            const darknessFactor = THREE.MathUtils.smoothstep(dist, MIN_DARK_DIST, MAX_DARK_DIST);
+
+            // Interpolate colors
+            floorMaterial.color.lerpColors(floorColorBright, floorColorDark, darknessFactor);
+            wallMaterial.color.lerpColors(wallColorBright, wallColorDark, darknessFactor);
+            
+            // --- NEW: Check for narrative triggers ---
+            if (dist > 80 && !hasGivenDarkWarning && panicEventStage === 0) {
+                triggerDarkWarning();
+            }
+            
+            // Staged panic event
+            if (panicEventStage === 0 && dist >= PANIC_DIST_1) {
+                triggerPanicEvent(1);
+            } else if (panicEventStage === 1 && dist >= PANIC_DIST_2) {
+                triggerPanicEvent(2);
+            } else if (panicEventStage === 2 && dist >= PANIC_DIST_3) {
+                triggerPanicEvent(3);
+            } else if (panicEventStage === 3 && dist >= PANIC_DIST_4) {
+                triggerPanicEvent(4);
+            }
+            // --- End New ---
+        }
+        
+        // --- NEW: Billboard update ---
+        function updateBillboard() {
+            if (panicEventStage < 4) return; // Don't show until event triggers
+
+            // --- FIX: Manual distance calculation for Cannon.js ---
+            const pos = playerPhysicsBody.position;
+            const targetPos = startPos; // { x, y: 0, z }
+            
+            const dx = pos.x - targetPos.x;
+            const dz = pos.z - targetPos.z;
+            const distSq = dx*dx + dz*dz; // Only check 2D distance
+            // --- END FIX ---
+            
+            const visibleDistSq = (CELL_SIZE * 3) * (CELL_SIZE * 3);
+            const triggerDistSq = (CELL_SIZE * 0.8) * (CELL_SIZE * 0.8); // <-- CHANGED: Much closer
+            
+            // Show if within 3 cells
+            if (distSq < visibleDistSq) {
+                // Project 3D position to 2D screen space
+                const screenPos = new THREE.Vector3().copy(errorBillboardObject.position);
+                screenPos.project(camera);
+                
+                // Convert to CSS coordinates
+                const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+                
+                errorBillboard.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+                errorBillboard.style.display = 'block';
+                
+                // --- ADDED: Trigger message on approach ---
+                if (distSq < triggerDistSq && !hasTriggeredFaultMessage && !isNaviSpeaking) {
+                    triggerFaultMessage();
+                }
+                // --- End Added ---
+
+            } else {
+                errorBillboard.style.display = 'none';
+            }
+        }
+        // --- End New ---
+
+        function animate() {
+            if (!hasGameStarted) {
+                requestAnimationFrame(animate);
+                return;
+            }
+
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            const elapsed = now - then;
+
+            if (elapsed > fpsInterval) {
+                then = now - (elapsed % fpsInterval);
+                
+                const delta = elapsed / 1000; 
+                const physicsDelta = 1 / FPS_CAP; 
+
+                if (controls.isLocked === true) {
+                    updatePlayer(delta);
+                    world.step(physicsDelta);
+                    updateDynamicWorld();
+                    runClippyTips(delta);
+                } else {
+                    // When unlocked (e.g. for Navi), stop the player's physics movement
+                    playerPhysicsBody.velocity.x = 0;
+                    playerPhysicsBody.velocity.z = 0;
+                    
+                    // Also need to step the world so things like falling still happen
+                    world.step(physicsDelta);
+                }
+                
+                // --- ADDED: Update maze darkness based on distance ---
+                updateMazeDarkness();
+                // --- END ADD ---
+                
+                // --- NEW: Update Billboard ---
+                updateBillboard();
+                // --- End New ---
+                
+                // --- NEW: Update Starfield ---
+                if (starfield) {
+                    // Make stars follow the player so they always seem infinitely far
+                    starfield.position.copy(playerPhysicsBody.position);
+                }
+                // --- End New ---
+
+                // --- NEW: Update Fireflies & Fog ---
+                if (hasFlashlightUnlocked) { // Only run during/after dark event
+                    // Animate fireflies
+                    if (fireflies) {
+                        fireflies.visible = true;
+                        
+                        const t = now * 0.005;
+                        const positions = fireflies.geometry.attributes.position;
+                        const spawnTarget = new THREE.Vector3(startPos.x, 2.0, startPos.z);
+                        const currentPos = new THREE.Vector3();
+                        const direction = new THREE.Vector3();
+                        const playerPos = playerPhysicsBody.position;
+                        
+                        // Make them flicker
+                        fireflies.material.opacity = Math.abs(Math.sin(t * 3.0)) * 0.5 + 0.3; // Flicker
+                        
+                        const driftSpeed = 1.0; // units per second
+
+                        for (let i = 0; i < positions.count; i++) {
+                            currentPos.fromBufferAttribute(positions, i);
+                            
+                            // Calculate direction towards spawn
+                            direction.subVectors(spawnTarget, currentPos);
+                            
+                            // If particle is "home", reset it far away
+                            if (direction.lengthSq() < 25) { // 5 unit radius
+                                // --- CHANGED: Respawn logic ---
+                                const respawnDist = (GRID_SIZE * CELL_SIZE) * 0.4; // 40% of map radius
+                                const angle = Math.random() * Math.PI * 2;
+                                const r = respawnDist * (0.8 + Math.random() * 0.2); // Spawn in a ring
+                                currentPos.set(
+                                    startPos.x + Math.cos(angle) * r, 
+                                    THREE.MathUtils.randFloat(1, 5), 
+                                    startPos.z + Math.sin(angle) * r
+                                );
+                                // --- End Change ---
+                            } else {
+                                // Move towards spawn
+                                direction.normalize();
+                                // Add some random wobble
+                                direction.x += (Math.random() - 0.5) * 0.5;
+                                direction.y += (Math.random() - 0.5) * 0.5;
+                                direction.z += (Math.random() - 0.5) * 0.5;
+                                direction.normalize();
+                                
+                                currentPos.add(direction.multiplyScalar(driftSpeed * delta));
+                            }
+                            
+                            positions.setXYZ(i, currentPos.x, currentPos.y, currentPos.z);
+                        }
+                        positions.needsUpdate = true;
+                    }
+
+                    // Control fog based on camera pitch
+                    const pitch = camera.rotation.x; // Up/down angle
+                    const startFadePitch = 0.7; // Approx 40 deg up
+                    const fullFadePitch = 1.2;  // Approx 70 deg up
+
+                    const baseFogNear = 5;  // <-- CHANGED: Match new fog
+                    const baseFogFar = 50;   // <-- CHANGED: Match new fog
+                    const skyFogNear = 1000; // No fog
+                    const skyFogFar = 2000;  // No fog
+
+                    // 0.0 = looking down/level, 1.0 = looking up
+                    const fogFactor = THREE.MathUtils.smoothstep(pitch, startFadePitch, fullFadePitch); 
+                    
+                    scene.fog.near = THREE.MathUtils.lerp(baseFogNear, skyFogNear, fogFactor);
+                    scene.fog.far = THREE.MathUtils.lerp(baseFogFar, skyFogFar, fogFactor);
+
+                } else {
+                    if (fireflies) fireflies.visible = false;
+                }
+                // --- End New ---
+                
+                // --- NEW: Update Wind Particles ---
+                if (windParticles && windParticles.visible) {
+                    const positions = windParticles.geometry.attributes.position;
+                    for (let i = 0; i < positions.count; i++) {
+                        let y = positions.getY(i);
+                        y -= 3.0; // Fall down
+                        if (y < -25) y = 25; // Reset to top
+                        positions.setY(i, y);
+                    }
+                    positions.needsUpdate = true;
+                }
+                // --- End New ---
+
+                // Always sync 3D model to physics
+                playerBody.position.copy(playerPhysicsBody.position);
+                playerBody.position.y += (PLAYER_HEIGHT / 2); // Eye-level offset
+                
+                // Update flashlight
+                flashlight.visible = isFlashlightOn;
+                flashlightOverlay.style.display = isFlashlightOn ? 'block' : 'none';
+                
+                // Update flashlight shake
+                if (isFlashlightOn && playerOnGround && (moveForward || moveBackward || moveLeft || moveRight)) {
+                    const shakeAmount = isSprinting ? 2.5 : 1.0;
+                    const shakeX = (Math.random() - 0.5) * shakeAmount;
+                    const shakeY = (Math.random() - 0.5) * shakeAmount;
+                    const shakeR = (Math.random() - 0.5) * (shakeAmount * 0.5);
+                    flashlightHand.style.transform = `translate(${shakeX}px, ${shakeY}px) rotate(${shakeR}deg)`;
+                } else {
+                    flashlightHand.style.transform = 'none';
+                }
+                
+                // Update debug menu
+                updateDebugMenu();
+
+                // --- REMOVED: Update Debug Raycast Line's *position logic* ---
+
+                // --- REMOVED: Update Debug Raycast Line's *visual geometry* ---
+
+                // Render pixelated scene
+                renderer.setRenderTarget(renderTarget);
+                renderer.render(scene, camera);
+                renderer.setRenderTarget(null);
+                renderer.render(finalScene, finalCamera);
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
