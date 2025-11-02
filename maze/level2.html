@@ -403,7 +403,7 @@
     
     <!-- 1. Loading Screen (Visible on load) -->
     <div id="loadingScreen">
-        Loading...
+        <p>Loading...(press the screen)</p>
         <span id="loadingSpinner">|</span>
     </div>
 
@@ -478,6 +478,29 @@
 
 
     <script type="module">
+
+
+        // Preload critical cutscene audio
+const preloadAudio = (url) => {
+  const audio = new Audio();
+  audio.src = url;
+  audio.load();
+  return audio;
+};
+
+// Preload images
+const preloadImage = (url) => {
+  const img = new Image();
+  img.src = url;
+  return img;
+};
+
+// Do this EARLY
+const heartbeatAudioPreload = preloadAudio('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/sounds/heartbeat.mp3');
+preloadImage('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/handframe1.png');
+preloadImage('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/handframe2.png');
+
+
 // ============================================================
 // TUTORIAL HINT
 // ============================================================
@@ -940,7 +963,7 @@ function init() {
         
         // --- NEW: Init Audio ---
         // Footstep audio with reverb
-        const reverb = new Tone.Reverb(1.5).toDestination(); // 1.5s decay
+        const reverb = new Tone.Reverb(1.1).toDestination(); // 1.5s decay
         // --- FIX: Assign to global player ---
         footstepPlayer = new Tone.Player(footstepSound.src).connect(reverb);
         footstepPlayer.loop = true;
@@ -2081,6 +2104,13 @@ function onKeyDown(event) {
             if (!isDebugMenuOpen) clearPosMarkers();
             break;
 
+        case 'KeyJ':
+            if (isDebugMenuOpen && !isCutsceneActive) {
+                console.log("DEBUG: Skipping to cutscene...");
+                startEndingCutscene();
+            }
+            break;
+
         case 'KeyK':
             if (isDebugMenuOpen) createPosMarker();
             break;
@@ -2403,10 +2433,13 @@ function triggerLandingFlash() {
 }
 
 // ============================================================
-// NEW: ENDING CUTSCENE
+// FIXED: ENDING CUTSCENE WITH PROPER PACING & TYPEWRITER
 // ============================================================
 let cutsceneState = 0;
 let cutsceneTimer = 0;
+let cameraWobbleAmount = 0;
+let typewriterText = "";
+let typewriterIndex = 0;
 
 function startEndingCutscene() {
     isCutsceneActive = true;
@@ -2419,19 +2452,30 @@ function startEndingCutscene() {
     if (mapVisible) closeMap();
     if (isHiding) exitTrashCan();
     
+    // Fade out ambient music
+    if (ambientSound && ambientSound.paused === false) {
+        const fadeInterval = setInterval(() => {
+            ambientSound.volume = Math.max(0, ambientSound.volume - 0.03);
+            if (ambientSound.volume <= 0) {
+                ambientSound.pause();
+                clearInterval(fadeInterval);
+            }
+        }, 100);
+    }
+    
     // Stop sounds
-    if (footstepPlayer && footstepPlayer.state === 'started') footstepPlayer.stop(); // <-- FIX: Use Tone player
+    if (footstepPlayer && footstepPlayer.state === 'started') footstepPlayer.stop();
     if (beepLoop.state === 'started') beepLoop.stop();
 
     // Set player position and look at target
     playerBody.position.set(-1.25, -2, -0.76);
     camera.lookAt(3.35, -2, 3.36);
     
-    // Create laser beam visuals (hidden)
+    // Create laser beam visuals
     const beamPos = new THREE.Vector3(3.35, -3.95, 3.36);
     
     // Blinking light
-    laserLight = new THREE.PointLight(0xff0000, 0, 10); // Start off
+    laserLight = new THREE.PointLight(0xff0000, 0, 10);
     laserLight.position.copy(beamPos);
     scene.add(laserLight);
     
@@ -2446,10 +2490,11 @@ function startEndingCutscene() {
     });
     laserErrorText = new THREE.Mesh(textGeo, laserMaterial.clone());
     laserErrorText.position.copy(beamPos);
-    laserErrorText.position.y += 2.0; // Above light
-    // Simple canvas texture for ERROR
+    laserErrorText.position.y += 2.0;
+    
     const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 64;
+    canvas.width = 256;
+    canvas.height = 64;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ff0000';
     ctx.font = 'bold 40px monospace';
@@ -2460,33 +2505,51 @@ function startEndingCutscene() {
     scene.add(laserErrorText);
     
     // Laser beam mesh
-    const beamGeo = new THREE.PlaneGeometry(1, 50); // Tall plane
+    const beamGeo = new THREE.PlaneGeometry(1, 50);
     laserBeam = new THREE.Mesh(beamGeo, laserMaterial.clone());
     laserBeam.position.copy(beamPos);
-    laserBeam.position.y += 25; // Center it
+    laserBeam.position.y += 25;
     scene.add(laserBeam);
 
     cutsceneState = 1;
     cutsceneTimer = 0;
+    cameraWobbleAmount = 0;
+    typewriterIndex = 0;
+    typewriterText = "";
+}
+
+function typewriterUpdate(targetText, charPerSecond, currentIndex) {
+    // Returns how much text should be visible
+    const charsToShow = Math.floor(currentIndex * charPerSecond);
+    return targetText.substring(0, charsToShow);
 }
 
 function updateCutscene(delta) {
     if (!isCutsceneActive) return;
     cutsceneTimer += delta;
 
-    // Force camera position
+    // Force camera position with wobble
     playerBody.position.set(-1.25, -2, -0.76);
-    camera.lookAt(3.35, -2, 3.36);
+    
+    // Apply wobble (only in states 5+)
+    let wobbleX = 0, wobbleY = 0, wobbleZ = 0;
+    if (cutsceneState >= 5) {
+        wobbleX = Math.sin(cutsceneTimer * 8) * cameraWobbleAmount * 0.3;
+        wobbleY = Math.cos(cutsceneTimer * 6) * cameraWobbleAmount * 0.3;
+        wobbleZ = Math.sin(cutsceneTimer * 5) * cameraWobbleAmount * 0.2;
+    }
+    
+    const lookPos = new THREE.Vector3(3.35 + wobbleX, -2 + wobbleY, 3.36 + wobbleZ);
+    camera.lookAt(lookPos);
 
-    // State 1: Laser warmup (3s)
+    // STATE 1: Laser warmup (3 seconds)
     if (cutsceneState === 1) {
-        // Blinking light and text
         const blink = Math.sin(cutsceneTimer * 20) > 0;
         laserLight.intensity = blink ? 5 : 0;
         laserErrorText.material.opacity = blink ? 1 : 0;
         
         if (cutsceneTimer > 3.0) {
-            // BAM - laser fires
+            // Laser fires
             laserLight.intensity = 20;
             laserBeam.material.opacity = 0.8;
             laserErrorText.material.opacity = 1;
@@ -2497,90 +2560,164 @@ function updateCutscene(delta) {
             
             cutsceneTimer = 0;
             cutsceneState = 2;
+            typewriterIndex = 0;
         }
     }
     
-    // State 2: Laser fires, Navi appears (2s)
+    // STATE 2: "WHAT HAVE YOU DONE" with typewriter (5 seconds)
     else if (cutsceneState === 2) {
-        if (cutsceneTimer > 0.1) { // Show Navi just after
-            navigatorAIContainer.classList.add('corrupted');
-            navigatorAIContainer.style.display = 'block';
-            navigatorAIText.textContent = "WHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\nWHATHAVEYOUDONE\n";
-        }
-        if (cutsceneTimer > 2.0) {
+        navigatorAIContainer.classList.remove('corrupted');
+        navigatorAIContainer.style.display = 'block';
+        
+        const fullText = "WHATHAVEYOUDONE\n".repeat(20);
+        typewriterText = typewriterUpdate(fullText, 30, cutsceneTimer); // 30 chars/sec
+        navigatorAIText.textContent = typewriterText;
+        
+        if (cutsceneTimer > 5.0) {
             navigatorAIContainer.style.display = 'none';
             cutsceneTimer = 0;
             cutsceneState = 3;
         }
     }
     
-    // State 3: Hand rises (3s)
+    // STATE 3: 1 second pause
     else if (cutsceneState === 3) {
-        if (cutsceneTimer === 0) { // First frame
-            cutsceneHand.src = HAND_FRAME_1_URL;
-            cutsceneHand.style.display = 'block';
-            // Force reflow
-            void cutsceneHand.offsetHeight;
-            // Start transition
-            cutsceneHand.style.bottom = '-50px'; // Rise to final pos
-        }
-        
-        // Wait for hand to rise
-        if (cutsceneTimer > 2.0) {
-            cutsceneHand.classList.add('hand-shake');
-            document.body.classList.add('screen-shake');
-        }
-        
-        if (cutsceneTimer > 5.0) { // 2s rise + 3s shake
-            cutsceneHand.classList.remove('hand-shake');
-            document.body.classList.remove('screen-shake');
+        if (cutsceneTimer > 1.0) {
             cutsceneTimer = 0;
             cutsceneState = 4;
         }
     }
     
-    // State 4: Red flash, hand 2, new text
+    // STATE 4: Hand rises (2 seconds)
     else if (cutsceneState === 4) {
-        if (cutsceneTimer === 0) {
-            document.body.classList.add('red-flash');
-            cutsceneHand.src = HAND_FRAME_2_URL;
+        // On first frame of state 4, set up the hand
+        if (cutsceneTimer < delta * 1.5) {
+            cutsceneHand.src = HAND_FRAME_1_URL;
+            cutsceneHand.style.display = 'block';
+            cutsceneHand.style.opacity = '1';
+            cutsceneHand.style.transition = 'bottom 2s ease-out';
+            cutsceneHand.classList.remove('hand-shake');
+            cutsceneHand.style.filter = 'none';
             
-            navigatorAIContainer.style.display = 'block';
-            navigatorAIText.textContent = "IMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\nIMSORRY,ITHADTOBEDONE\n";
+            // Trigger reflow to start animation
+            void cutsceneHand.offsetHeight;
+            
+            // Animate bottom position
+            cutsceneHand.style.bottom = '0px';
         }
         
+        // Transition to state 5
         if (cutsceneTimer > 2.0) {
-            document.body.classList.remove('red-flash');
-            navigatorAIContainer.style.display = 'none';
-            
+            cutsceneHand.classList.remove('hand-shake');
+            document.body.classList.remove('screen-shake');
             cutsceneTimer = 0;
             cutsceneState = 5;
         }
     }
     
-    // State 5: Heartbeat and fade
+    // STATE 5: "I'M SORRY, IT HAD TO BE DONE" with typewriter (3 seconds)
     else if (cutsceneState === 5) {
-        if (cutsceneTimer === 0) {
-            vignetteOverlay.style.background = 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,1) 70%)';
-            vignetteOverlay.style.display = 'block';
-            heartbeatSound.play();
+        navigatorAIContainer.classList.remove('corrupted');
+        navigatorAIContainer.style.display = 'block';
+        
+        const fullText = "IMSORRY,ITHADTOBEDONE\n".repeat(25);
+        typewriterText = typewriterUpdate(fullText, 25, cutsceneTimer); // 25 chars/sec
+        navigatorAIText.textContent = typewriterText;
+        
+        if (cutsceneTimer > 3.0) {
+            navigatorAIContainer.style.display = 'none';
+            cutsceneTimer = 0;
+            cutsceneState = 6;
+        }
+    }
+    
+    // STATE 6: Red flash + hand change + start heartbeat
+    else if (cutsceneState === 6) {
+        // On first frame: trigger red flash & start effects
+        if (cutsceneTimer < delta * 1.5) {
+            // Red flash overlay
+            flashElement.style.display = 'block';
+            flashElement.style.opacity = '1';
+            flashElement.style.transition = 'opacity 1.5s linear';
             
-            heartbeatSound.onended = () => {
-                // Redirect when sound finishes
-                window.location.href = REDIRECT_URL;
-            };
+            // Play glitch/laser sound for red flash
+            laserNoise.triggerAttackRelease("8n");
+            laserSynth.triggerAttackRelease("A1", "16n");
+            
+            // Change hand to frame 2
+            cutsceneHand.style.transition = 'none';
+            cutsceneHand.style.opacity = '1';
+            cutsceneHand.src = HAND_FRAME_2_URL;
+            
+            // Start vignette creep
+            vignetteOverlay.style.background = 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.3) 80%)';
+            vignetteOverlay.style.display = 'block';
+            vignetteOverlay.style.transition = 'background 4.5s linear';
+            
+            // Play heartbeat
+            heartbeatSound.currentTime = 0;
+            heartbeatSound.volume = 1.0;
+            
+            const playPromise = heartbeatSound.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(error => {
+                    console.warn("Heartbeat autoplay blocked");
+                });
+            }
+            
+            // Start camera wobble & blur
+            cameraWobbleAmount = 0;
+            renderer.domElement.style.filter = 'blur(0px)';
         }
         
-        // At 5s, flash
-        if (cutsceneTimer > 5.0 && cutsceneState === 5) {
-            triggerLandingFlash(); // Re-use white flash
+        // Red flash fades out over 1.5s
+        if (cutsceneTimer < 1.5) {
+            flashElement.style.opacity = Math.max(0, 1 - (cutsceneTimer / 1.5));
+        } else if (cutsceneTimer >= 1.5) {
+            flashElement.style.display = 'none';
+        }
+        
+        // Wobble and blur build up (0 to 4.5 seconds)
+        cameraWobbleAmount = (cutsceneTimer / 4.5) * 1.5;
+        const blurAmount = Math.min(10, (cutsceneTimer / 4.5) * 10);
+        renderer.domElement.style.filter = `blur(${blurAmount}px)`;
+        
+        // Vignette creeps in from 1.5s to 4.5s
+        if (cutsceneTimer > 1.5 && cutsceneTimer < 4.5) {
+            const creepProgress = (cutsceneTimer - 1.5) / 3.0;
+            vignetteOverlay.style.background = `radial-gradient(ellipse at center, transparent ${creepProgress * 30}%, rgba(0,0,0,${0.3 + creepProgress * 0.7}) 100%)`;
+        }
+        
+        // At 4.5s: full fade to black & heartbeat
+        if (cutsceneTimer > 4.5 && cutsceneState === 6) {
+            // Full black vignette
+            vignetteOverlay.style.background = 'rgba(0,0,0,1)';
+            
+            // White flash
+            triggerLandingFlash();
+            
+            // Fade to black overlay
             fadeToBlack.style.display = 'block';
-            setTimeout(() => { fadeToBlack.style.opacity = '1'; }, 10); // Fade in
-            cutsceneState = 6; // Done
+            fadeToBlack.style.opacity = '0';
+            fadeToBlack.style.transition = 'opacity 3s linear';
+            setTimeout(() => {
+                fadeToBlack.style.opacity = '1';
+            }, 50);
+            
+            // Redirect when heartbeat ends (or timeout at 12s as fallback)
+            const redirectTimeout = setTimeout(() => {
+                window.location.href = REDIRECT_URL;
+            }, 12000);
+            
+            heartbeatSound.onended = () => {
+                clearTimeout(redirectTimeout);
+                window.location.href = REDIRECT_URL;
+            };
+            
+            cutsceneState = 7; // Prevent re-triggering
         }
     }
 }
-// --- End New ---
 
 // ============================================================
 // QUEST STATE PERSISTENCE (Optional)
