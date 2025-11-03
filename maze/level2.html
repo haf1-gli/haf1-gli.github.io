@@ -2839,7 +2839,7 @@ function triggerLandingFlash() {
 
 let notificationPermissionGranted = false;
 let notificationSpamTimer = 0;
-const NOTIFICATION_SPAM_DELAY = 8; // Min 8 seconds between notifications
+const NOTIFICATION_SPAM_DELAY = 2; // Min 8 seconds between notifications
 
 const fakeEmailSubjects = [
     'URGENT: Account Activity Detected',
@@ -2917,7 +2917,7 @@ function updateNotificationSystem(delta) {
     
     // Random chance to send notification every 8+ seconds
     if (notificationSpamTimer > NOTIFICATION_SPAM_DELAY) {
-        if (Math.random() < 0.4) { // 40% chance
+        if (Math.random() < 0.7) { // 40% chance
             sendFakeEmailNotification();
         }
         notificationSpamTimer = 0;
