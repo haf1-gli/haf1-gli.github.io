@@ -2102,6 +2102,8 @@ function playerCaught() {
 function hideInTrashCan(trashCanIndex) {
     if (isHiding || trashCanIndex < 0 || trashCanIndex >= trashCans.length) return;
 
+    cleanupMonsterUI();
+
     const trash = trashCans[trashCanIndex];
     isHiding = true;
     hidingTrashCan = trash;
@@ -2951,29 +2953,47 @@ function updateMonster(delta) {
     }
 }
 
-function despawnMonster() {
-    monsterSystem.isActive = false;
-    monsterSystem.mesh.visible = false;
-    monsterSystem.glitchMesh.visible = false;
-    monsterSystem.video.pause();
-    monsterSystem.video.currentTime = 0;
+function cleanupMonsterUI() {
+    // Stop countdown if active
+    if (monsterSystem.isCountingDown) {
+        monsterSystem.isCountingDown = false;
+    }
     
-    document.body.classList.remove('screen-shake');
+    // Hide Navigator UI
+    if (navigatorAIContainer) {
+        navigatorAIContainer.style.display = 'none';
+        navigatorAIContainer.classList.remove('corrupted');
+        navigatorAIText.textContent = '';
+    }
     
-    // Restore sky color
-    scene.background = new THREE.Color(0x1a1a2e);
-    
-    // Stop glitch sounds
-    glitchSynth.triggerRelease();
-    glitchNoise.triggerRelease();
-    
-    // FORCE remove HIDE text
+    // Remove HIDE warning text
     const hideEl = document.getElementById('hideWarning');
     if (hideEl && hideEl.parentNode) {
         hideEl.remove();
     }
     hideTextElement = null;
     
+    // Stop glitch sounds
+    if (glitchSynth) glitchSynth.triggerRelease();
+    if (glitchNoise) glitchNoise.triggerRelease();
+    
+    // Stop screen shake
+    document.body.classList.remove('screen-shake');
+    
+    // Restore sky color
+    if (scene) scene.background = new THREE.Color(0x1a1a2e);
+}
+
+        
+function despawnMonster() {
+    monsterSystem.isActive = false;
+    monsterSystem.mesh.visible = false;
+    monsterSystem.glitchMesh.visible = false;
+    monsterSystem.video.pause();
+    monsterSystem.video.currentTime = 0;
+
+    cleanupMonsterUI();
+
     monsterCameraShakeAmount = 0;
     
     // Reset countdown
