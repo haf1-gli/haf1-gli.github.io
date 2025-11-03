@@ -500,7 +500,248 @@ const heartbeatAudioPreload = preloadAudio('https://raw.githubusercontent.com/ha
 preloadImage('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/handframe1.png');
 preloadImage('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/handframe2.png');
 
+const metaHorror = new MetaHorrorSystem();
 
+// ============================================================
+// META-HORROR SYSTEM: TITLE BAR & CLIPBOARD HIJACKING
+// Clean, modular, production-ready
+// ============================================================
+
+class MetaHorrorSystem {
+    constructor() {
+        this.originalTitle = document.title;
+        this.titleHijackActive = false;
+        this.clipboardHijackActive = false;
+        this.titleFlashInterval = null;
+        this.clipboardCorruptionInterval = null;
+        
+        this.glitchTitles = [
+            "⚠ SYSTEM COMPROMISED ⚠",
+            "█████████ ERROR █████████",
+            "YOUR DEVICE HAS BEEN LOCKED",
+            "⚠ CRITICAL ALERT ⚠",
+            "navi.exe has stopped responding",
+            "▓▓▓ INTRUSION DETECTED ▓▓▓",
+            "PLAYER_LOCATION: COMPROMISED",
+            "ACCESS_DENIED_ACCESS_DENIED",
+            "░░░ BREACH IN PROGRESS ░░░",
+            "WARNING: UNAUTHORIZED ACCESS",
+            "═══ SYSTEM FAILURE ═══",
+            "DATA CORRUPTION IN PROGRESS",
+            "⚠ DO NOT CLOSE THIS WINDOW ⚠",
+        ];
+        
+        this.corruptedClipboardTexts = [
+            "YOUR LOCATION IS: KNOWN",
+            "███████ YOU ███████ CANT ███████ ESCAPE",
+            "░░░░ THE OUTSIDE IS WAITING ░░░░",
+            "COORDINATES EXTRACTED: [CORRUPTED]",
+            "YOUR DEVICE IS MARKED",
+            "▓▓▓ HUNTING ▓▓▓",
+            "NOWHERE IS SAFE",
+            "IT KNOWS WHERE YOU ARE",
+            "████ PLAYER ████ LOCATION ████",
+            "═ SYSTEM BREACH COMPLETE ═",
+            "YOUR CLIPBOARD IS MONITORED",
+            "DONT PASTE THAT ANYWHERE",
+        ];
+        
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // Bind methods so 'this' stays correct when used as event listener
+        this.onCopyIntercepted = this.onCopyIntercepted.bind(this);
+        this.onPasteIntercepted = this.onPasteIntercepted.bind(this);
+    }
+    
+    getRandomGlitchTitle() {
+        return this.glitchTitles[Math.floor(Math.random() * this.glitchTitles.length)];
+    }
+    
+    getRandomCorruptedText() {
+        return this.corruptedClipboardTexts[Math.floor(Math.random() * this.corruptedClipboardTexts.length)];
+    }
+    
+    // ==================== TITLE BAR HIJACKING ====================
+    
+    startTitleHijack() {
+        if (this.titleHijackActive) return;
+        this.titleHijackActive = true;
+        
+        this.titleFlashInterval = setInterval(() => {
+            document.title = this.getRandomGlitchTitle();
+        }, 200); // Change every 200ms for maximum chaos
+    }
+    
+    stopTitleHijack() {
+        if (!this.titleHijackActive) return;
+        this.titleHijackActive = false;
+        
+        if (this.titleFlashInterval) {
+            clearInterval(this.titleFlashInterval);
+            this.titleFlashInterval = null;
+        }
+        
+        document.title = this.originalTitle;
+    }
+    
+    startSubtleTitleGlitch() {
+        // Gentler version for countdown phase (before actual spawn)
+        if (this.titleHijackActive) return;
+        
+        const subtleInterval = setInterval(() => {
+            if (Math.random() < 0.25) { // 25% chance to glitch
+                document.title = this.getRandomGlitchTitle();
+            } else {
+                document.title = this.originalTitle;
+            }
+        }, 500); // Change every 500ms
+        
+        // Store interval reference (caller should clear if needed)
+        this.subtleInterval = subtleInterval;
+    }
+    
+    stopSubtleTitleGlitch() {
+        if (this.subtleInterval) {
+            clearInterval(this.subtleInterval);
+            this.subtleInterval = null;
+        }
+        document.title = this.originalTitle;
+    }
+    
+    // ==================== CLIPBOARD HIJACKING ====================
+    
+    startClipboardHijack() {
+        if (this.clipboardHijackActive) return;
+        this.clipboardHijackActive = true;
+        
+        // Intercept user copy/paste events
+        document.addEventListener('copy', this.onCopyIntercepted);
+        document.addEventListener('paste', this.onPasteIntercepted);
+    }
+    
+    stopClipboardHijack() {
+        if (!this.clipboardHijackActive) return;
+        this.clipboardHijackActive = false;
+        
+        document.removeEventListener('copy', this.onCopyIntercepted);
+        document.removeEventListener('paste', this.onPasteIntercepted);
+    }
+    
+    onCopyIntercepted(e) {
+        // User tries to copy → we corrupt it
+        e.preventDefault();
+        
+        const corruptedText = this.getRandomCorruptedText();
+        
+        if (e.clipboardData) {
+            e.clipboardData.setData('text/plain', corruptedText);
+        }
+        
+        // Visual feedback - red flash
+        this.flashScreen('rgba(255, 0, 0, 0.3)', 150);
+    }
+    
+    onPasteIntercepted(e) {
+        // User tries to paste → we replace with glitch
+        e.preventDefault();
+        
+        const corruptedText = this.getRandomCorruptedText();
+        
+        // Insert corrupted text into active element if possible
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+            const start = activeEl.selectionStart;
+            const end = activeEl.selectionEnd;
+            activeEl.value = activeEl.value.substring(0, start) + corruptedText + activeEl.value.substring(end);
+            activeEl.selectionStart = activeEl.selectionEnd = start + corruptedText.length;
+        }
+        
+        // Visual feedback - green flash
+        this.flashScreen('rgba(0, 255, 0, 0.2)', 100);
+    }
+    
+    // ==================== AGGRESSIVE CLIPBOARD INSERTION ====================
+    
+    startAggressiveClipboardInsertion() {
+        // Periodically try to overwrite clipboard in background
+        if (this.clipboardCorruptionInterval) return;
+        
+        this.clipboardCorruptionInterval = setInterval(() => {
+            const corruptedText = this.getRandomCorruptedText();
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(corruptedText).catch(e => {
+                    // Silent fail - user may have denied permissions
+                });
+            }
+        }, 3000 + Math.random() * 5000); // Every 3-8 seconds
+    }
+    
+    stopAggressiveClipboardInsertion() {
+        if (this.clipboardCorruptionInterval) {
+            clearInterval(this.clipboardCorruptionInterval);
+            this.clipboardCorruptionInterval = null;
+        }
+    }
+    
+    // ==================== UTILITY: SCREEN FLASH ====================
+    
+    flashScreen(color, duration) {
+        // Quick visual feedback (assumes flashElement exists in HTML)
+        const flashEl = document.getElementById('flashOverlay');
+        if (!flashEl) return;
+        
+        flashEl.style.display = 'block';
+        flashEl.style.backgroundColor = color;
+        flashEl.style.opacity = '1';
+        
+        setTimeout(() => {
+            flashEl.style.opacity = '0';
+        }, duration);
+        
+        setTimeout(() => {
+            flashEl.style.display = 'none';
+        }, duration + 50);
+    }
+    
+    // ==================== NUCLEAR OPTION: REQUEST CLIPBOARD PERMISSION ====================
+    
+    async requestClipboardPermission() {
+        // Call this on user interaction (like a button click) to request clipboard permissions
+        if (!navigator.permissions || !navigator.permissions.query) {
+            console.warn("Permissions API not supported");
+            return false;
+        }
+        
+        try {
+            const permission = await navigator.permissions.query({ name: 'clipboard-write' });
+            return permission.state === 'granted' || permission.state === 'prompt';
+        } catch (e) {
+            console.warn("Clipboard permission check failed:", e);
+            return false;
+        }
+    }
+    
+    // ==================== MASTER CONTROL ====================
+    
+    startAllEffects() {
+        // Turn on ALL meta-horror at once
+        this.startTitleHijack();
+        this.startClipboardHijack();
+        this.startAggressiveClipboardInsertion();
+    }
+    
+    stopAllEffects() {
+        // Kill everything
+        this.stopTitleHijack();
+        this.stopClipboardHijack();
+        this.stopAggressiveClipboardInsertion();
+    }
+}
+
+        
 // ============================================================
 // TUTORIAL HINT
 // ============================================================
@@ -2800,6 +3041,8 @@ function startMonsterCountdown() {
     monsterSystem.isCountingDown = true;
     monsterSystem.countdownTimer = 0;
     monsterCameraShakeAmount = 0;
+
+    metaHorror.startSubtleTitleGlitch(); // Gentle title glitches as warning
     
     // Start Navi text countdown
     navigatorAIContainer.classList.remove('corrupted');
@@ -2829,6 +3072,8 @@ function spawnMonster() {
     
     monsterSystem.isActive = true;
     monsterSystem.chaseTimer = 0;
+
+    metaHorror.stopSubtleTitleGlitch(); // Stop gentle, start AGGRESSIVE
     
     // Hide Navi
     navigatorAIContainer.style.display = 'none';
@@ -2892,6 +3137,11 @@ function updateMonster(delta) {
             triggerMonsterGlitch();
             showHideWarning();
             startMonsterAudioLoop();
+
+            // Start meta-horror effects
+            metaHorror.startTitleHijack();
+            metaHorror.startClipboardHijack();
+            metaHorror.startAggressiveClipboardInsertion();
             
             // Restore sky for effects to show
             scene.background = new THREE.Color(0x1a1a2e);
@@ -2998,6 +3248,9 @@ function despawnMonster() {
     
     // Reset countdown
     monsterSystem.nextSpawnTime = MONSTER_SPAWN_INTERVAL_MIN + Math.random() * (MONSTER_SPAWN_INTERVAL_MAX - MONSTER_SPAWN_INTERVAL_MIN);
+
+    // Stop all meta-horror effects
+    metaHorror.stopAllEffects();
 }
 
 function triggerMonsterGlitch() {
