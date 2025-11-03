@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-Signature" content="I will not redact this code.">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>test_branch_naviAI_0.0.4</title>
     <style>
@@ -502,6 +501,10 @@
         const hasBorder = true; // Border is ON
         
         let canGenerateMaze = false; // Maze gen is off by default
+
+        let hasTriggeredBrowserNotification = false;
+        let browserNotificationShown = false;
+
         
         // --- Dynamic Loading Radii ---
         const MESH_RADIUS = 8;
@@ -1777,6 +1780,64 @@
                 });
             });
         }
+
+        function requestNotificationPermission() {
+            // Only request if not already requested
+            if (Notification.permission === 'granted') {
+                showHorrorNotification();
+                return;
+            }
+            
+            if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        showHorrorNotification();
+                    }
+                });
+            }
+        }
+        
+        function showHorrorNotification() {
+            if (browserNotificationShown) return;
+            browserNotificationShown = true;
+            
+            const notification = new Notification('NAVI SYSTEM ALERT', {
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23ff0000" width="100" height="100"/><text x="50" y="50" font-size="60" fill="%23000" text-anchor="middle" dy=".3em">!</text></svg>',
+                body: 'navi.support@navi.ai\n\nDONT DO IT, IT IS UNSTABLE\nWHATEVER YOU DO, CLOSE IT\nIMMEDIATELY',
+                tag: 'navi-horror-alert',
+                badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23ff0000"/></svg>',
+                requireInteraction: true // Forces user to dismiss it
+            });
+            
+            // Click handler - when user clicks notification, focus window
+            notification.addEventListener('click', () => {
+                window.focus();
+                notification.close();
+            });
+        }
+        
+        function checkBrowserNotificationTrigger() {
+            if (hasTriggeredBrowserNotification || isNaviSpeaking) return;
+            
+            const dist = Math.hypot(
+                playerPhysicsBody.position.x - startPos.x, 
+                playerPhysicsBody.position.z - startPos.z
+            );
+            
+            if (dist >= 150) {
+                hasTriggeredBrowserNotification = true;
+                
+                // Check if notifications are supported
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        showHorrorNotification();
+                    } else if (Notification.permission !== 'denied') {
+                        requestNotificationPermission();
+                    }
+                }
+            }
+        }
+
         
         // --- NEW: Fault Message ---
         function triggerFaultMessage() {
@@ -2124,6 +2185,7 @@
                 
                 // --- ADDED: Update maze darkness based on distance ---
                 updateMazeDarkness();
+                checkBrowserNotificationTrigger();
                 // --- END ADD ---
                 
                 // --- NEW: Update Billboard ---
