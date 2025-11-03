@@ -1998,7 +1998,7 @@ function playerCaught() {
     navigatorAIContainer.style.display = 'none';
     flashlightOverlay.style.display = 'none';
     
-    // Fade to black with scary image background
+    // Black background with scary image behind text
     const caughtOverlay = document.createElement('div');
     caughtOverlay.style.cssText = `
         position: fixed;
@@ -2006,10 +2006,7 @@ function playerCaught() {
         left: 0;
         width: 100%;
         height: 100%;
-        background-image: url('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/scary.jpg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
+        background-color: #000;
         z-index: 300;
         display: flex;
         align-items: center;
@@ -2018,9 +2015,33 @@ function playerCaught() {
         font-size: 20px;
         color: #FFFFFF;
         letter-spacing: 5px;
-        opacity: 0.1;
-        animation: scaryShake 0.1s infinite;
     `;
+    
+    // Scary image behind the text
+    const scaryImg = document.createElement('img');
+    scaryImg.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/assets/texture/maze/scary.jpg';
+    scaryImg.style.cssText = `
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        object-fit: cover;
+        opacity: 0.1;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        animation: scaryShake 0.1s infinite;
+        pointer-events: none;
+    `;
+    caughtOverlay.appendChild(scaryImg);
+    
+    // Text container on top
+    const textContainer = document.createElement('div');
+    textContainer.style.cssText = `
+        position: relative;
+        z-index: 1;
+        text-align: center;
+    `;
+    caughtOverlay.appendChild(textContainer);
     
     document.body.appendChild(caughtOverlay);
     
@@ -2040,7 +2061,7 @@ function playerCaught() {
             }
             return result;
         });
-        caughtOverlay.textContent = corruptedLines.join('\n');
+        textContainer.textContent = corruptedLines.join('\n');
     };
     
     const corruptInterval = setInterval(corruptText, 80);
