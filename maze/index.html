@@ -643,13 +643,21 @@
         loadingScreen = document.getElementById('loadingScreen');
         startButton = document.getElementById('startButton');
 
-        startButton.addEventListener('click', () => {
-            startMenu.style.display = 'none';
-            loadingScreen.style.display = 'flex';
-            
-            // Now we run the actual game initialization
-            setTimeout(init, 50); // Short delay to show "Loading..."
-        });
+startButton.addEventListener('click', async () => {
+    startMenu.style.display = 'none';
+    loadingScreen.style.display = 'flex';
+    
+    // Request notification permission BEFORE init
+    if ('Notification' in window && Notification.permission === 'default') {
+        try {
+            await Notification.requestPermission();
+        } catch (error) {
+            console.error('Notification request error:', error);
+        }
+    }
+    
+    setTimeout(init, 50);
+});
 
 
         // --- MAIN INIT FUNCTION ---
