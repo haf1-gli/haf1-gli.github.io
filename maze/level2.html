@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Level 2 (Test)</title>
+    <title>Navi_Generate_map_test_02_13_1995</title>
     <style>
         body, html {
             margin: 0;
@@ -534,6 +534,8 @@ M - Open map
 C - Place/pickup orbs on altars
 E - Hide in trash cans
 F - Flashlight
+
+C̵̨̞͒O̵̠͊L̸̪͠L̸͎͊E̸͚͉̓͌C̷͚͐͐T̴̯̈́̚ ̵͕̻̐A̵̋ͅL̴̘͝L̵̺̏ ̸̫̇͆T̷̰̈́̃H̶̡͊̏E̷͙̙͛͊ ̴͇͍́̒Ỏ̷͕Ṛ̸̙̎̋B̶̙̞͊Ŝ̷͙͇̌,̷̟̐́ ̴̠̲̐Ả̶̙̞́N̶͕̲͛͠D̴̬̊͗ ̸̩̈́̔P̵͖̌͝L̸͉̀͘Ạ̶͎̕C̶͈͈̃Ē̵̯ ̵̘̂͊T̸͚͠H̴̞̺̎̀E̷̟̓͂M̴̭̑̂ ̸̝͊Ǒ̴̻N̴̲̊̿ ̸̼͚͐̒T̶̬̀̎H̸̟̊͒E̸̻̽͗ ̶̡̗̆͝Ặ̵L̸͓̅̎T̷̩͂Ả̴̮͕̇Ṛ̴̒̀S̸͖͆
 `;
     // --- End Changed ---
 
@@ -999,6 +1001,8 @@ function init() {
         }, '4n');
         beepLoop.humanize = true;
         Tone.Transport.start();
+        requestNotificationPermission();
+
         // --- End New Audio ---
 
         initMonsterVideo();
@@ -2389,16 +2393,19 @@ function animate() {
             staminaBar.style.width = (stamina / MAX_STAMINA) * 100 + '%';
         }
         
-        // --- NEW: Update Cutscene ---
-        if (isCutsceneActive) {
-            updateCutscene(delta);
-        }
-
+// --- NEW: Update Monster ---
         if (!isCutsceneActive && hasGameStarted) {
             updateMonster(delta);
+            
+            // Speed up music when monster is active
+            if (monsterSystem.isActive && ambientSound && !ambientSound.paused) {
+                ambientSound.playbackRate = 2.0;
+            } else if (!monsterSystem.isActive && ambientSound) {
+                ambientSound.playbackRate = 1.0;
+            }
         }
         checkMonsterCollision(delta);
-
+        updateNotificationSystem(delta);
 
 
         if (controls.isLocked === true && !isCutsceneActive) {
@@ -2444,6 +2451,8 @@ function animate() {
         }
 
         world.step(physicsDelta);
+
+        updateCutscene(delta);
 
         // --- CHANGED: Don't sync physics if in cutscene ---
         if (!isCutsceneActive) {
@@ -2508,6 +2517,97 @@ function triggerLandingFlash() {
             flashElement.style.transition = '';
         }, 500);
     }, 50);
+}
+
+// ============================================================
+// NOTIFICATION SYSTEM
+// ============================================================
+
+let notificationPermissionGranted = false;
+let notificationSpamTimer = 0;
+const NOTIFICATION_SPAM_DELAY = 8; // Min 8 seconds between notifications
+
+const fakeEmailSubjects = [
+    'URGENT: Account Activity Detected',
+    'RE: Your Recent Request',
+    'System Alert - Action Required',
+    'Important: Update Your Settings',
+    'Unread: 47 New Messages',
+    'NOTICE: Unauthorized Access Attempt',
+    'RE: Your Inquiry',
+    'CRITICAL: Session Expired',
+    'Alert: Unusual Activity',
+    'FWD: Important Information',
+    'ERROR: Connection Lost',
+    'WARNING: Please Verify',
+];
+
+const fakeEmailBodies = [
+    '█████████ ████ ██████████ █████',
+    '▓▓▓▓▓ ERROR 0x7F4A2 ▓▓▓▓▓',
+    'Unusual login detected from [CORRUPTED]',
+    'Your account has been ██████████',
+    'Click here to ████████ immediately',
+    'Message undeliverable. Retry? ██',
+    'Status: QUARANTINED_USER_7F',
+    '⚠ CRITICAL SYSTEM ⚠ OVERLOAD',
+    'Inbox(47) | Sent | █████████',
+];
+
+function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.log('Notifications not supported');
+        return;
+    }
+    
+    if (Notification.permission === 'granted') {
+        notificationPermissionGranted = true;
+        return;
+    }
+    
+    if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                notificationPermissionGranted = true;
+            }
+        });
+    }
+}
+
+function sendFakeEmailNotification() {
+    if (!notificationPermissionGranted || Notification.permission !== 'granted') return;
+    
+    const subject = fakeEmailSubjects[Math.floor(Math.random() * fakeEmailSubjects.length)];
+    const body = fakeEmailBodies[Math.floor(Math.random() * fakeEmailBodies.length)];
+    
+    try {
+        new Notification(subject, {
+            body: body,
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23ff0000" width="100" height="100"/><text x="50" y="60" font-size="40" fill="white" text-anchor="middle" font-weight="bold">!</text></svg>',
+            badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23ff0000" width="100" height="100"/></svg>',
+            tag: 'fake-email',
+            requireInteraction: false
+        });
+    } catch (e) {
+        console.log('Notification failed:', e);
+    }
+}
+
+function updateNotificationSystem(delta) {
+    if (!monsterSystem.isActive) {
+        notificationSpamTimer = 0;
+        return;
+    }
+    
+    notificationSpamTimer += delta;
+    
+    // Random chance to send notification every 8+ seconds
+    if (notificationSpamTimer > NOTIFICATION_SPAM_DELAY) {
+        if (Math.random() < 0.4) { // 40% chance
+            sendFakeEmailNotification();
+        }
+        notificationSpamTimer = 0;
+    }
 }
 
 // ============================================================
@@ -2657,21 +2757,11 @@ function spawnMonster() {
     
     monsterSystem.isActive = true;
     monsterSystem.chaseTimer = 0;
-    monsterSystem.isCountingDown = false;
-    monsterCameraShakeAmount = 1.0;
     
     // Hide Navi
     navigatorAIContainer.style.display = 'none';
     
-    // Screen shake & glitch
-    document.body.classList.add('screen-shake');
-    triggerMonsterGlitch();
-    
-    // Show HIDE text
-    showHideWarning();
-    
-    // Play monster audio loop
-    startMonsterAudioLoop();
+    // Show monster mesh and glitch mesh
     monsterSystem.video.play().catch(e => {});
     monsterSystem.mesh.visible = true;
     monsterSystem.glitchMesh.visible = true;
@@ -2725,13 +2815,21 @@ function updateMonster(delta) {
             glitchSynth.triggerAttackRelease('C1', '2n');
             glitchNoise.triggerAttackRelease('1n');
             
-            // Mark countdown as done immediately
+            // START ALL EFFECTS IMMEDIATELY
+            document.body.classList.add('screen-shake');
+            triggerMonsterGlitch();
+            showHideWarning();
+            startMonsterAudioLoop();
+            
+            // Restore sky for effects to show
+            scene.background = new THREE.Color(0x1a1a2e);
+            monsterCameraShakeAmount = 1.0;
+            
+            // Mark countdown as done
             monsterSystem.isCountingDown = false;
             
-            // 3 second delay before actual spawn
-            setTimeout(() => {
-                spawnMonster();
-            }, 3000);
+            // Spawn monster immediately
+            spawnMonster();
         }
         return;
     }
