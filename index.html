@@ -2681,65 +2681,76 @@
             }
         }
 
-        function updateClientLogic(delta) {
-            // --- CLIENT ---
-            // 1. Send local inputs (p2)
-            const p2Inputs = {
-                forward: moveForward, backward: moveBackward, left: moveLeft, right: moveRight
-            };
-            
-            // --- ROTATION FIX: Calculate aim relative to body yaw ---
-            let p2Aim = { yaw: 0, pitch: 0 };
-            const p2 = player2; // Client is p2
-            if (p2.userData.headPivot && p2.userData.turretModel && p2.userData.turretPivot) {
-                
-                // --- FIX: HEAD YAW must be relative to tank body ---
-                const bodyYaw = p2.userData.yaw; // Get the *current* body yaw from interpolation
-                let targetHeadYaw = cameraYaw - bodyYaw; // Calculate the difference
-                
-                // Normalize the angle
-                while (targetHeadYaw > Math.PI) targetHeadYaw -= Math.PI * 2;
-                while (targetHeadYaw < -Math.PI) targetHeadYaw += Math.PI * 2;
+        // REPLACEMENT: updateClientLogic - Fix client head yaw calculation too
+function updateClientLogic(delta) {
+    // --- CLIENT ---
+    // 1. Send local inputs (p2)
+    const p2Inputs = {
+        forward: moveForward, backward: moveBackward, left: moveLeft, right: moveRight
+    };
+    
+    // === CLIENT HEAD & TURRET AIM ===
+    let p2Aim = { yaw: 0, pitch: 0 };
+    const p2 = player2; // Client is p2
+    if (p2.userData.headPivot && p2.userData.turretModel && p2.userData.turretPivot) {
+        
+        // HEAD YAW: Convert world camera yaw to LOCAL yaw (relative to tank body)
+        const bodyYaw = p2.userData.yaw; // Get current body yaw from interpolation
+        let targetHeadYaw = cameraYaw - bodyYaw; // Convert camera yaw to local space
+        
+        // Normalize angle to -PI to PI
+        while (targetHeadYaw > Math.PI) targetHeadYaw -= Math.PI * 2;
+        while (targetHeadYaw < -Math.PI) targetHeadYaw += Math.PI * 2;
 
-                if (!isAimLocked && !isPrecisionAiming) { 
-                    p2Aim.yaw = THREE.MathUtils.lerp(p2.userData.headPivot.rotation.y, targetHeadYaw, delta * headTurnSpeed);
-                } else if (isPrecisionAiming) { 
-                    p2Aim.yaw = targetHeadYaw; 
-                }
-                // --- END FIX ---
-                
-                // TURRET PITCH: Calculate based on camera pitch (like the host does)
-                if (!isAimLocked && !isPrecisionAiming) { 
-                    const normalizedMouseY = (mouseY - (window.innerHeight / 2)) / (window.innerHeight / 2); 
-                    const mousePitch = -normalizedMouseY; 
-                    const basePitch = THREE.MathUtils.mapLinear(cameraPitch, 0.1, 1.4, 0, -10 * (Math.PI / 180)); 
-                    const mousePitchOffset = mousePitch * (30 * (Math.PI / 180));
-                    let targetPitch = basePitch + mousePitchOffset; 
-                    const maxPitchUp = 45 * (Math.PI / 180); 
-                    const maxPitchDown = -10 * (Math.PI / 180);
-                    targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
-                    p2Aim.pitch = THREE.MathUtils.lerp(p2.userData.turretPivot.rotation.y, targetPitch, delta * turretPitchSpeed);
-                } else if (isPrecisionAiming) { 
-                    let targetPitch = THREE.MathUtils.mapLinear(cameraPitch, cameraPitchMin, cameraPitchMax, 45 * (Math.PI / 180), -10 * (Math.PI / 180));
-                    const maxPitchUp = 45 * (Math.PI / 180); 
-                    const maxPitchDown = -10 * (Math.PI / 180); 
-                    targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
-                    p2Aim.pitch = targetPitch; 
-                }
-            }
-            sendData({ type: 'inputs', inputs: p2Inputs, aim: p2Aim });
-            
-            // --- RELOAD FIX: Client NO LONGER handles its own reload logic ---
-            // updatePlayerReload(player2, delta);
-            // --- END RELOAD FIX ---
-            
-            // 3. Update local tank aim visually (apply calculated aim immediately for smooth rendering)
-            if (player2.userData.headPivot) player2.userData.headPivot.rotation.y = p2Aim.yaw;
-            if (player2.userData.turretPivot) player2.userData.turretPivot.rotation.y = p2Aim.pitch;
-
-            // 4. Interpolate remote state (player1)
-            interpolateState();
+        if (!isAimLocked && !isPrecisionAiming) { 
+            p2Aim.yaw = THREE.MathUtils.lerp(
+                p2.userData.headPivot.rotation.y, 
+                targetHeadYaw, 
+                delta * headTurnSpeed
+            );
+        } else if (isPrecisionAiming) { 
+            p2Aim.yaw = targetHeadYaw; 
         }
+        
+        // TURRET PITCH: Calculate based on camera pitch
+        if (!isAimLocked && !isPrecisionAiming) { 
+            const normalizedMouseY = (mouseY - (window.innerHeight / 2)) / (window.innerHeight / 2); 
+            const mousePitch = -normalizedMouseY; 
+            const basePitch = THREE.MathUtils.mapLinear(cameraPitch, 0.1, 1.4, 0, -10 * (Math.PI / 180)); 
+            const mousePitchOffset = mousePitch * (30 * (Math.PI / 180));
+            let targetPitch = basePitch + mousePitchOffset; 
+            const maxPitchUp = 45 * (Math.PI / 180); 
+            const maxPitchDown = -10 * (Math.PI / 180);
+            targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
+            p2Aim.pitch = THREE.MathUtils.lerp(
+                p2.userData.turretPivot.rotation.y, 
+                targetPitch, 
+                delta * turretPitchSpeed
+            );
+        } else if (isPrecisionAiming) { 
+            let targetPitch = THREE.MathUtils.mapLinear(
+                cameraPitch, 
+                cameraPitchMin, 
+                cameraPitchMax, 
+                45 * (Math.PI / 180), 
+                -10 * (Math.PI / 180)
+            );
+            const maxPitchUp = 45 * (Math.PI / 180); 
+            const maxPitchDown = -10 * (Math.PI / 180); 
+            targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
+            p2Aim.pitch = targetPitch; 
+        }
+    }
+    
+    sendData({ type: 'inputs', inputs: p2Inputs, aim: p2Aim });
+    
+    // Apply calculated aim immediately for smooth rendering
+    if (player2.userData.headPivot) player2.userData.headPivot.rotation.y = p2Aim.yaw;
+    if (player2.userData.turretPivot) player2.userData.turretPivot.rotation.y = p2Aim.pitch;
+
+    // Interpolate remote state (player1)
+    interpolateState();
+}
         
         function updateTestModeLogic(delta) {
             // --- TEST MODE ---
@@ -2819,23 +2830,32 @@
         }
         
 // REPLACEMENT: updatePlayerAim function - Make BOTH host and client world-relative
-function updatePlayerAim(player, camYaw, camPitch, mY, winH) {
+function updatePlayerAim(player, camYaw, camPitch, mY, winH) {// REPLACEMENT: updatePlayerAim function - BOTH host and client use WORLD-SPACE head yaw
     const data = player.userData;
     if (data.isDead || !data.headPivot || !data.turretModel || !data.turretPivot) return;
     
-    // --- Tank Head & Turret Aim (NOW WORLD-RELATIVE FOR BOTH) ---
-    
-    // --- ROTATION FIX: This logic is for HOST (P1) only ---
-    // Client (P2) aiming is handled in updateClientLogic
+    // === HOST (P1) HEAD & TURRET AIM ===
     if (isHost && player.userData.id === 'p1') {
-        // HEAD YAW: Use camera yaw directly in world space (NOT relative to tank)
+        
+        // HEAD YAW: WORLD-SPACE (NOT relative to tank body)
+        // The headPivot is a child of the playerGroup (tank body)
+        // So when we set headPivot.rotation.y, it rotates RELATIVE to the body
+        // We need to convert world yaw to local yaw
+        
+        const bodyYaw = data.yaw; // Tank body's yaw in world space
+        const headYawLocal = camYaw - bodyYaw; // Convert camera yaw to local space
+        
         if (!isAimLocked && !isPrecisionAiming) { 
-            data.headPivot.rotation.y = THREE.MathUtils.lerp(data.headPivot.rotation.y, camYaw, clock.getDelta() * headTurnSpeed); 
+            data.headPivot.rotation.y = THREE.MathUtils.lerp(
+                data.headPivot.rotation.y, 
+                headYawLocal, 
+                clock.getDelta() * headTurnSpeed
+            ); 
         } else if (isPrecisionAiming) { 
-            data.headPivot.rotation.y = camYaw; 
+            data.headPivot.rotation.y = headYawLocal; 
         }
         
-        // TURRET PITCH: Calculate based on camera pitch (same for both)
+        // TURRET PITCH: Calculate based on camera pitch
         if (!isAimLocked && !isPrecisionAiming) { 
             const normalizedMouseY = (mY - (winH / 2)) / (winH / 2); 
             const mousePitch = -normalizedMouseY; 
@@ -2845,9 +2865,19 @@ function updatePlayerAim(player, camYaw, camPitch, mY, winH) {
             const maxPitchUp = 45 * (Math.PI / 180); 
             const maxPitchDown = -10 * (Math.PI / 180);
             targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
-            data.turretPivot.rotation.y = THREE.MathUtils.lerp(data.turretPivot.rotation.y, targetPitch, clock.getDelta() * turretPitchSpeed);
+            data.turretPivot.rotation.y = THREE.MathUtils.lerp(
+                data.turretPivot.rotation.y, 
+                targetPitch, 
+                clock.getDelta() * turretPitchSpeed
+            );
         } else if (isPrecisionAiming) { 
-            let targetPitch = THREE.MathUtils.mapLinear(camPitch, cameraPitchMin, cameraPitchMax, 45 * (Math.PI / 180), -10 * (Math.PI / 180));
+            let targetPitch = THREE.MathUtils.mapLinear(
+                camPitch, 
+                cameraPitchMin, 
+                cameraPitchMax, 
+                45 * (Math.PI / 180), 
+                -10 * (Math.PI / 180)
+            );
             const maxPitchUp = 45 * (Math.PI / 180); 
             const maxPitchDown = -10 * (Math.PI / 180); 
             targetPitch = THREE.MathUtils.clamp(targetPitch, maxPitchDown, maxPitchUp); 
@@ -2856,7 +2886,9 @@ function updatePlayerAim(player, camYaw, camPitch, mY, winH) {
         
         data.turretModel.rotation.copy(turretModelRotation);
     }
+    // === CLIENT aiming is handled in updateClientLogic ===
 }
+
 
         function updatePlayerReload(player, delta) {
             const data = player.userData;
