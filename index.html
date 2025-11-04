@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FUNY TANK GAME - Multiplayer</title>
+    <title>tank game</title>
     <!-- We're going to need a different font for the UI -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -2178,14 +2178,11 @@
 
         // --- Explosion Function (UPDATED) ---
         function createExplosion(position, hitObject, doDamage) {
-            // --- FIX: Add guard to prevent crash if material not loaded ---
             if (!explosionMaterial || !explosionSoundBuffer) {
                 console.warn("Explosion event received, but assets not ready. Skipping.");
                 return;
             } 
-            // --- END FIX ---
             
-            // --- This part runs on HOST and CLIENT (from event) ---
             // Sprite Setup
             const explosion = new THREE.Mesh(explosionGeometry, explosionMaterial.clone());
             explosion.position.copy(position); 
@@ -2203,12 +2200,10 @@
             explosion.add(sound); 
             explosion.userData.audio = sound; 
             scene.add(explosion); 
-            // --- FIX: Push the MESH, not the SOUND ---
             explosions.push(explosion); 
-            // --- END FIX ---
             sound.play(); 
-
-            // --- This part ONLY runs on HOST ---
+        
+            // HOST LOGIC
             if (isHost && doDamage) {
                 // Send event so client can spawn visual/audio
                 sendData({
@@ -2216,7 +2211,7 @@
                     event: 'explosion',
                     pos: { x: position.x, y: position.y, z: position.z }
                 });
-
+        
                 // Player Damage & Camera Shake
                 tanks.forEach(tank => {
                     if (!tank.userData.isDead) {
@@ -2227,9 +2222,8 @@
                             tank.userData.health -= damage; 
                             tank.userData.health = Math.max(0, tank.userData.health); 
                             console.log(`${tank.userData.username} hit! Dmg: ${damage.toFixed(1)}, Health: ${tank.userData.health.toFixed(0)}`); 
-                            
-                            updateHealthBar(tank); // For test mode
-
+                            updateHealthBar(tank);
+        
                             if (tank.userData.health <= 0) {
                                 handlePlayerDeath(tank);
                             }
@@ -2246,12 +2240,13 @@
                     const proximityShake = shakeRatio * 0.3; 
                     cameraShakeIntensity += baseShake + proximityShake; 
                 }
-
-                // Collidable Damage
+        
+                // Collidable Damage - FIX: Check for null entries!
                 for (let i = collidables.length - 1; i >= 0; i--) {
                     const collidable = collidables[i];
-                    if (destroyedCollidables.has(collidable.userData.collidableIndex)) continue; // Already dead
-
+                    if (!collidable) continue; // ← SKIP null entries
+                    if (destroyedCollidables.has(collidable.userData.collidableIndex)) continue;
+        
                     const distance = position.distanceTo(collidable.position);
                     collidable.boundingBox.getSize(collidableBoxSize); 
                     const collidableRadius = Math.max(collidableBoxSize.x, collidableBoxSize.z) / 2;
@@ -2366,11 +2361,10 @@
                 }
             }
         }
-
+        
         function removeCollidable(collidable, index) { 
              scene.remove(collidable); 
-             // IMPORTANT: We don't splice, we nullify, to keep indices stable
-             collidables[index] = null; 
+             collidables[index] = null;  // Mark as deleted (don't splice to keep indices stable)
              
              if (collidable.userData.type === 'tree') { 
                  const treeIndex = trees.indexOf(collidable); 
@@ -2382,6 +2376,7 @@
              if (collidable.debugBox) { debugHelpers.remove(collidable.debugBox); collidable.debugBox.geometry.dispose(); collidable.debugBox.material.dispose(); }
              collidable.traverse(child => { if (child.isMesh) { child.geometry.dispose(); if (child.material.isMaterial) { if (child.material.map) child.material.map.dispose(); child.material.dispose(); } } });
         }
+
         
         // --- Particle Functions ---
         function spawnWoodParticles(position) {
