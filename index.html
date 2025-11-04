@@ -587,81 +587,6 @@
         let peerConnection;
         let dataChannel;
 
-        // === EFFICIENT STATE SYNC ===
-        
-        // Configuration
-        const STATE_SEND_RATE = 1000 / 12; // Reduce to 12 updates/sec (instead of 20)
-        const POSITION_THRESHOLD = 0.5; // Only send if moved > 0.5 units
-        const ROTATION_THRESHOLD = 0.05; // Only send if rotated > 0.05 radians (~2.8°)
-        const HEALTH_THRESHOLD = 5; // Only send if health changed by 5+
-        const RELOAD_THRESHOLD = 0.1; // Only send if reload progress changed by 10%
-        
-        // Track last sent state for delta compression
-        let lastSentP1State = {
-            pos: new THREE.Vector3(),
-            rot: new THREE.Quaternion(),
-            headYaw: 0,
-            turretPitch: 0,
-            health: 100,
-            isReloaded: true,
-            reloadProgress: 1.0
-        };
-        
-        let lastSentP2State = {
-            pos: new THREE.Vector3(),
-            rot: new THREE.Quaternion(),
-            headYaw: 0,
-            turretPitch: 0,
-            health: 100,
-            isReloaded: true,
-            reloadProgress: 1.0
-        };
-        
-        let timeSinceLastStateSend = 0;
-        
-        // === HELPER: Check if value changed significantly ===
-        function hasChangedSignificantly(oldVal, newVal, threshold) {
-            if (typeof oldVal === 'number') {
-                return Math.abs(oldVal - newVal) > threshold;
-            }
-            if (oldVal instanceof THREE.Vector3) {
-                return oldVal.distanceTo(newVal) > threshold;
-            }
-            if (oldVal instanceof THREE.Quaternion) {
-                // Compare as Euler angles to be more intuitive
-                const oldEuler = new THREE.Euler().setFromQuaternion(oldVal);
-                const newEuler = new THREE.Euler().setFromQuaternion(newVal);
-                const angleDiff = Math.abs(oldEuler.y - newEuler.y);
-                return angleDiff > threshold;
-            }
-            return oldVal !== newVal;
-        }
-        
-        // === HELPER: Compress position to 2 decimals ===
-        function compressVector3(v) {
-            return {
-                x: Math.round(v.x * 100) / 100,
-                y: Math.round(v.y * 100) / 100,
-                z: Math.round(v.z * 100) / 100
-            };
-        }
-        
-        // === HELPER: Compress rotation to 3 decimals ===
-        function compressQuaternion(q) {
-            return {
-                x: Math.round(q.x * 1000) / 1000,
-                y: Math.round(q.y * 1000) / 1000,
-                z: Math.round(q.z * 1000) / 1000,
-                w: Math.round(q.w * 1000) / 1000
-            };
-        }
-        
-        // === HELPER: Compress angles to 2 decimals ===
-        function compressAngle(a) {
-            return Math.round(a * 100) / 100;
-        }
-
-
         // --- NEW: This function securely fetches credentials from our Vercel API ---
         async function fetchTurnCredentials() {
         console.log("Fetching TURN credentials from our API...");
@@ -2670,25 +2595,37 @@
             }
         }
         
-        // === REPLACEMENT: updateHostLogic - Efficient state sending ===
+        // --- NEW: Physics & State Update (Refactored) ---
+        
         function updateHostLogic(delta) {
-            // Update physics and aim as before
+            // --- HOST ---
+            
+            // --- FIX 2 & 3: Update local player (p1) ---
+            // 1. Get local (p1) inputs
             const p1Inputs = {
                 forward: moveForward, backward: moveBackward, left: moveLeft, right: moveRight
             };
             updatePlayerPhysics(player1, p1Inputs, delta);
             updatePlayerAim(player1, cameraYaw, cameraPitch, mouseY, window.innerHeight);
-        
-            updatePlayerPhysics(player2, remoteInputs, delta);
-            if (player2.userData.aim && player2.userData.headPivot && player2.userData.turretPivot) {
-                player2.userData.headPivot.rotation.y = player2.userData.aim.yaw;
-                player2.userData.turretPivot.rotation.y = player2.userData.aim.pitch;
+    
+            // --- FIX 1: Update remote player (p2) ---
+            // 2. Apply remote (p2) inputs
+            updatePlayerPhysics(player2, remoteInputs, delta); // <-- Was p2Inputs
+            if (player2.userData.aim) {
+                // --- FIX: Add guards to prevent crash before models load ---
+                if (player2.userData.headPivot) {
+                    player2.userData.headPivot.rotation.y = player2.userData.aim.yaw;
+                }
+                if (player2.userData.turretPivot) {
+                    player2.userData.turretPivot.rotation.y = player2.userData.aim.pitch;
+                }
             }
             
+            // 3. Update reload logic for both
             updatePlayerReload(player1, delta);
-            updatePlayerReload(player2, delta);
+            updatePlayerReload(player2, delta); // Host simulates this too
             
-            // Respawn logic
+            // 4. Update respawn timers
             tanks.forEach(tank => {
                 if (tank.userData.isDead) {
                     tank.userData.respawnTimer -= delta;
@@ -2697,125 +2634,52 @@
                     }
                 }
             });
-        
+
+            // 5. Update Bullets (HOST ONLY)
             updateBullets(delta);
-        
-            // === EFFICIENT STATE SEND ===
+
+            // 6. Send state packet
             timeSinceLastStateSend += delta * 1000;
-            if (timeSinceLastStateSend >= STATE_SEND_RATE) {
+            if (timeSinceLastStateSend >= stateSendRate) {
                 timeSinceLastStateSend = 0;
                 
-                // Check what changed for P1
-                const p1Pos = compressVector3(player1.position);
-                const p1Rot = compressQuaternion(player1.quaternion);
-                const p1HeadYaw = compressAngle(player1.userData.headPivot ? player1.userData.headPivot.rotation.y : 0);
-                const p1TurretPitch = compressAngle(player1.userData.turretPivot ? player1.userData.turretPivot.rotation.y : 0);
-                
-                const p1Changed = {
-                    pos: hasChangedSignificantly(lastSentP1State.pos, player1.position, POSITION_THRESHOLD),
-                    rot: hasChangedSignificantly(lastSentP1State.rot, player1.quaternion, ROTATION_THRESHOLD),
-                    headYaw: hasChangedSignificantly(lastSentP1State.headYaw, p1HeadYaw, ROTATION_THRESHOLD),
-                    turretPitch: hasChangedSignificantly(lastSentP1State.turretPitch, p1TurretPitch, ROTATION_THRESHOLD),
-                    health: hasChangedSignificantly(lastSentP1State.health, player1.userData.health, HEALTH_THRESHOLD),
-                    reload: hasChangedSignificantly(lastSentP1State.reloadProgress, player1.userData.reloadProgress, RELOAD_THRESHOLD) ||
-                            lastSentP1State.isReloaded !== player1.userData.isReloaded
-                };
-        
-                // Check what changed for P2
-                const p2Pos = compressVector3(player2.position);
-                const p2Rot = compressQuaternion(player2.quaternion);
-                const p2HeadYaw = compressAngle(player2.userData.headPivot ? player2.userData.headPivot.rotation.y : 0);
-                const p2TurretPitch = compressAngle(player2.userData.turretPivot ? player2.userData.turretPivot.rotation.y : 0);
-                
-                const p2Changed = {
-                    pos: hasChangedSignificantly(lastSentP2State.pos, player2.position, POSITION_THRESHOLD),
-                    rot: hasChangedSignificantly(lastSentP2State.rot, player2.quaternion, ROTATION_THRESHOLD),
-                    headYaw: hasChangedSignificantly(lastSentP2State.headYaw, p2HeadYaw, ROTATION_THRESHOLD),
-                    turretPitch: hasChangedSignificantly(lastSentP2State.turretPitch, p2TurretPitch, ROTATION_THRESHOLD),
-                    health: hasChangedSignificantly(lastSentP2State.health, player2.userData.health, HEALTH_THRESHOLD),
-                    reload: hasChangedSignificantly(lastSentP2State.reloadProgress, player2.userData.reloadProgress, RELOAD_THRESHOLD) ||
-                            lastSentP2State.isReloaded !== player2.userData.isReloaded
-                };
-        
-                // Only send what changed
+                // Pack bullet data
+                const bulletData = bullets.map(b => ({
+                    id: b.uuid,
+                    pos: { x: b.position.x, y: b.position.y, z: b.position.z }
+                }));
+
+                // --- RELOAD FIX: Host sends authoritative reload state ---
                 const state = {
                     type: 'state',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    p1: {
+                        pos: { x: player1.position.x, y: player1.position.y, z: player1.position.z },
+                        rot: { x: player1.quaternion.x, y: player1.quaternion.y, z: player1.quaternion.z, w: player1.quaternion.w },
+                        headYaw: player1.userData.headPivot ? player1.userData.headPivot.rotation.y : 0,
+                        turretPitch: player1.userData.turretPivot ? player1.userData.turretPivot.rotation.y : 0,
+                        health: player1.userData.health,
+                        // --- ADDED ---
+                        isReloaded: player1.userData.isReloaded,
+                        reloadProgress: player1.userData.reloadProgress
+                    },
+                    p2: {
+                        pos: { x: player2.position.x, y: player2.position.y, z: player2.position.z },
+                        rot: { x: player2.quaternion.x, y: player2.quaternion.y, z: player2.quaternion.z, w: player2.quaternion.w },
+                        headYaw: player2.userData.headPivot ? player2.userData.headPivot.rotation.y : 0,
+                        turretPitch: player2.userData.turretPivot ? player2.userData.turretPivot.rotation.y : 0,
+                        health: player2.userData.health,
+                        // --- ADDED ---
+                        isReloaded: player2.userData.isReloaded,
+                        reloadProgress: player2.userData.reloadProgress
+                    },
+                    bullets: bulletData,
+                    scores: { p1: player1Score, p2: player2Score }
                 };
-        
-                // Only include P1 data if something changed
-                if (Object.values(p1Changed).some(v => v)) {
-                    state.p1 = {};
-                    if (p1Changed.pos) {
-                        state.p1.pos = p1Pos;
-                        lastSentP1State.pos.copy(player1.position);
-                    }
-                    if (p1Changed.rot) {
-                        state.p1.rot = p1Rot;
-                        lastSentP1State.rot.copy(player1.quaternion);
-                    }
-                    if (p1Changed.headYaw) {
-                        state.p1.headYaw = p1HeadYaw;
-                        lastSentP1State.headYaw = p1HeadYaw;
-                    }
-                    if (p1Changed.turretPitch) {
-                        state.p1.turretPitch = p1TurretPitch;
-                        lastSentP1State.turretPitch = p1TurretPitch;
-                    }
-                    if (p1Changed.health) {
-                        state.p1.health = player1.userData.health;
-                        lastSentP1State.health = player1.userData.health;
-                    }
-                    if (p1Changed.reload) {
-                        state.p1.isReloaded = player1.userData.isReloaded;
-                        state.p1.reloadProgress = Math.round(player1.userData.reloadProgress * 100) / 100;
-                        lastSentP1State.isReloaded = player1.userData.isReloaded;
-                        lastSentP1State.reloadProgress = player1.userData.reloadProgress;
-                    }
-                }
-        
-                // Only include P2 data if something changed
-                if (Object.values(p2Changed).some(v => v)) {
-                    state.p2 = {};
-                    if (p2Changed.pos) {
-                        state.p2.pos = p2Pos;
-                        lastSentP2State.pos.copy(player2.position);
-                    }
-                    if (p2Changed.rot) {
-                        state.p2.rot = p2Rot;
-                        lastSentP2State.rot.copy(player2.quaternion);
-                    }
-                    if (p2Changed.headYaw) {
-                        state.p2.headYaw = p2HeadYaw;
-                        lastSentP2State.headYaw = p2HeadYaw;
-                    }
-                    if (p2Changed.turretPitch) {
-                        state.p2.turretPitch = p2TurretPitch;
-                        lastSentP2State.turretPitch = p2TurretPitch;
-                    }
-                    if (p2Changed.health) {
-                        state.p2.health = player2.userData.health;
-                        lastSentP2State.health = player2.userData.health;
-                    }
-                    if (p2Changed.reload) {
-                        state.p2.isReloaded = player2.userData.isReloaded;
-                        state.p2.reloadProgress = Math.round(player2.userData.reloadProgress * 100) / 100;
-                        lastSentP2State.isReloaded = player2.userData.isReloaded;
-                        lastSentP2State.reloadProgress = player2.userData.reloadProgress;
-                    }
-                }
-        
-                // Always send score (small, always useful to know)
-                state.scores = { p1: player1Score, p2: player2Score };
-        
-                // Only send if there's actual content
-                if (state.p1 || state.p2) {
-                    sendData(state);
-                }
+                // --- END RELOAD FIX ---
+                sendData(state);
             }
         }
-        
-
 
         // REPLACEMENT: updateClientLogic - Fix client head yaw calculation too
 function updateClientLogic(delta) {
@@ -3058,110 +2922,105 @@ function updatePlayerAim(player, camYaw, camPitch, mY, winH) {// REPLACEMENT: up
             }
         }
         
-// === REPLACEMENT: interpolateState - Handle partial updates ===
-function interpolateState() {
-    if (isHost || stateUpdateBuffer.length < 2) return;
+        function interpolateState() {
+            // --- CLIENT-SIDE INTERPOLATION ---
+            if (isHost || stateUpdateBuffer.length < 2) return;
 
-    const now = Date.now();
-    const renderTimestamp = now - (1000.0 / 20.0);
+            const now = Date.now();
+            const renderTimestamp = now - (1000.0 / 20.0); // Render 50ms in the past
 
-    let state1 = null;
-    let state2 = null;
-    for (let i = stateUpdateBuffer.length - 1; i >= 0; i--) {
-        if (stateUpdateBuffer[i].timestamp <= renderTimestamp) {
-            state1 = stateUpdateBuffer[i];
-            state2 = (i + 1 < stateUpdateBuffer.length) ? stateUpdateBuffer[i + 1] : stateUpdateBuffer[i];
-            break;
-        }
-    }
-    
-    if (!state1) return;
-
-    let interpFactor;
-    const timeDiff = state2.timestamp - state1.timestamp;
-    
-    if (timeDiff <= 0) {
-        interpFactor = 1.0;
-    } else {
-        const t = (renderTimestamp - state1.timestamp) / timeDiff;
-        interpFactor = Math.max(0, Math.min(1, t));
-    }
-
-    // === HANDLE PARTIAL UPDATES ===
-    // Only interpolate/update fields that were actually sent
-    
-    if (player1 && state1.state.p1) {
-        if (state1.state.p1.pos && state2.state.p1 && state2.state.p1.pos) {
-            const p1_pos1 = new THREE.Vector3().copy(state1.state.p1.pos);
-            const p1_pos2 = new THREE.Vector3().copy(state2.state.p1.pos);
-            player1.position.lerpVectors(p1_pos1, p1_pos2, interpFactor);
-        }
-
-        if (state1.state.p1.rot && state2.state.p1 && state2.state.p1.rot) {
-            const p1_rot1 = new THREE.Quaternion().copy(state1.state.p1.rot);
-            const p1_rot2 = new THREE.Quaternion().copy(state2.state.p1.rot);
-            player1.quaternion.slerpQuaternions(p1_rot1, p1_rot2, interpFactor);
-        }
-
-        if (state1.state.p1.headYaw && player1.userData.headPivot && state2.state.p1 && state2.state.p1.headYaw) {
-            player1.userData.headPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p1.headYaw, state2.state.p1.headYaw, interpFactor);
-        }
-
-        if (state1.state.p1.turretPitch && player1.userData.turretPivot && state2.state.p1 && state2.state.p1.turretPitch) {
-            player1.userData.turretPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p1.turretPitch, state2.state.p1.turretPitch, interpFactor);
-        }
-
-        if (state1.state.p1.health !== undefined) {
-            player1.userData.health = state1.state.p1.health;
-        }
-
-        if (state1.state.p1.isReloaded !== undefined) {
-            player1.userData.isReloaded = state1.state.p1.isReloaded;
-        }
-
-        if (state1.state.p1.reloadProgress !== undefined) {
-            player1.userData.reloadProgress = state1.state.p1.reloadProgress;
-        }
-    }
-
-    // Same for P2...
-    if (player2 && state1.state.p2) {
-        if (state1.state.p2.pos && state2.state.p2 && state2.state.p2.pos) {
-            const p2_pos1 = new THREE.Vector3().copy(state1.state.p2.pos);
-            const p2_pos2 = new THREE.Vector3().copy(state2.state.p2.pos);
-            player2.position.lerpVectors(p2_pos1, p2_pos2, interpFactor);
-        }
-
-        if (state1.state.p2.rot && state2.state.p2 && state2.state.p2.rot) {
-            const p2_rot1 = new THREE.Quaternion().copy(state1.state.p2.rot);
-            const p2_rot2 = new THREE.Quaternion().copy(state2.state.p2.rot);
-            player2.quaternion.slerpQuaternions(p2_rot1, p2_rot2, interpFactor);
+            // Find two states to interpolate between
+            let state1 = null;
+            let state2 = null;
+            for (let i = stateUpdateBuffer.length - 1; i >= 0; i--) {
+                if (stateUpdateBuffer[i].timestamp <= renderTimestamp) {
+                    state1 = stateUpdateBuffer[i];
+                    state2 = (i + 1 < stateUpdateBuffer.length) ? stateUpdateBuffer[i + 1] : stateUpdateBuffer[i];
+                    break;
+                }
+            }
             
-            euler.setFromQuaternion(player2.quaternion, 'YXZ');
-            player2.userData.yaw = euler.y;
+            if (!state1) return; // Not enough data yet
+
+            // --- FIX: Prevent divide by zero which causes NaN/Infinity crash ---
+            let interpFactor;
+            const timeDiff = state2.timestamp - state1.timestamp;
+            
+            if (timeDiff <= 0) { // If states are same or out of order
+                interpFactor = 1.0; // Just snap to the latest valid state (state1)
+            } else {
+                const t = (renderTimestamp - state1.timestamp) / timeDiff;
+                interpFactor = Math.max(0, Math.min(1, t)); // Clamp 0-1
+            }
+            // --- END FIX ---
+
+            // --- Interpolate P1 (Host) ---
+            if (player1 && state1.state.p1 && state2.state.p1) {
+                const p1_pos1 = new THREE.Vector3().copy(state1.state.p1.pos);
+                const p1_pos2 = new THREE.Vector3().copy(state2.state.p1.pos);
+                player1.position.lerpVectors(p1_pos1, p1_pos2, interpFactor);
+
+                const p1_rot1 = new THREE.Quaternion().copy(state1.state.p1.rot);
+                const p1_rot2 = new THREE.Quaternion().copy(state2.state.p1.rot);
+                player1.quaternion.slerpQuaternions(p1_rot1, p1_rot2, interpFactor);
+                
+                // --- FIX: Add guards for client-side interpolation ---
+                if (player1.userData.headPivot) {
+                    player1.userData.headPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p1.headYaw, state2.state.p1.headYaw, interpFactor);
+                }
+                if (player1.userData.turretPivot) {
+                    player1.userData.turretPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p1.turretPitch, state2.state.p1.turretPitch, interpFactor);
+                }
+            }
+
+            // --- Interpolate P2 (Self) ---
+            if (player2 && state1.state.p2 && state2.state.p2) {
+                // We are P2. We need to smooth our *own* position based on server's authority
+                const p2_pos1 = new THREE.Vector3().copy(state1.state.p2.pos);
+                const p2_pos2 = new THREE.Vector3().copy(state2.state.p2.pos);
+                player2.position.lerpVectors(p2_pos1, p2_pos2, interpFactor);
+
+                const p2_rot1 = new THREE.Quaternion().copy(state1.state.p2.rot);
+                const p2_rot2 = new THREE.Quaternion().copy(state2.state.p2.rot);
+                player2.quaternion.slerpQuaternions(p2_rot1, p2_rot2, interpFactor);
+                
+                // --- ROTATION FIX: Extract and store the authoritative body yaw ---
+                euler.setFromQuaternion(player2.quaternion, 'YXZ');
+                player2.userData.yaw = euler.y;
+                // --- END ROTATION FIX ---
+            }
+            
+            // --- Sync Bullets ---
+            // This is "snapshot" based, no lerp. Just create/move/destroy
+            const state = state2.state;
+            const bulletsOnClient = new Set(bullets.map(b => b.uuid));
+            const bulletsInState = new Set();
+            
+            for (const bulletData of state.bullets) {
+                bulletsInState.add(bulletData.id);
+                let bullet = scene.getObjectByProperty('uuid', bulletData.id);
+                if (!bullet) {
+                    // New bullet
+                    bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+                    bullet.uuid = bulletData.id;
+                    bullet.position.copy(bulletData.pos);
+                    scene.add(bullet);
+                    bullets.push(bullet);
+                } else {
+                    // Update existing
+                    bullet.position.copy(bulletData.pos);
+                }
+            }
+            
+            // Remove bullets that are on client but not in state
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                if (!bulletsInState.has(bullets[i].uuid)) {
+                    scene.remove(bullets[i]);
+                    bullets.splice(i, 1);
+                }
+            }
         }
 
-        if (state1.state.p2.headYaw && player2.userData.headPivot && state2.state.p2 && state2.state.p2.headYaw) {
-            player2.userData.headPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p2.headYaw, state2.state.p2.headYaw, interpFactor);
-        }
-
-        if (state1.state.p2.turretPitch && player2.userData.turretPivot && state2.state.p2 && state2.state.p2.turretPitch) {
-            player2.userData.turretPivot.rotation.y = THREE.MathUtils.lerp(state1.state.p2.turretPitch, state2.state.p2.turretPitch, interpFactor);
-        }
-
-        if (state1.state.p2.health !== undefined) {
-            player2.userData.health = state1.state.p2.health;
-        }
-
-        if (state1.state.p2.isReloaded !== undefined) {
-            player2.userData.isReloaded = state1.state.p2.isReloaded;
-        }
-
-        if (state1.state.p2.reloadProgress !== undefined) {
-            player2.userData.reloadProgress = state1.state.p2.reloadProgress;
-        }
-    }
-}
         // --- Animate Loop ---
         function animate() {
             try { // --- NEW: Add try...catch to find hidden errors ---
@@ -3337,4 +3196,3 @@ function interpolateState() {
     </script>
 </body>
 </html>
-
