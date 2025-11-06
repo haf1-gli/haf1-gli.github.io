@@ -4,49 +4,82 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>New Tab</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=settings" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=search,settings" />
 <style>
 body,html{margin:0;padding:0;height:100%;background:#050705;overflow:hidden;font-family:system-ui,Arial,sans-serif;}
-canvas{display:block;}
-.material-symbols-outlined{color:white;cursor:pointer;}
-#settingsBtn{position:fixed;top:14px;right:14px;z-index:10;background:rgba(255,255,255,0.06);padding:6px;border-radius:10px;}
-#settingsPanel{position:fixed;top:60px;right:14px;width:340px;background:rgba(12,12,12,0.94);color:#eee;padding:12px;border-radius:12px;display:none;z-index:10;}
-#settingsPanel h3{margin:4px 0;}
-.row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
-label{width:120px;font-size:13px;color:#cfcfcf;}
-input[type=color],select,textarea,input[type=text]{flex:1;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background: rgba(255,255,255,0.02);color:#eee;}
-textarea{min-height:60px;resize:vertical;}
-select{color:#eee;background: rgba(255,255,255,0.02);}
-.btn{padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.02);color:#fff;cursor:pointer;border:1px solid rgba(255,255,255,0.06);}
-.hidden{display:none;}
+canvas{display:block;position:absolute;top:0;left:0;z-index:1;}
+
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;pointer-events:none;}
+.search-container{pointer-events:all;display:flex;flex-direction:column;align-items:center;gap:24px;margin-bottom:60px;}
+
+.search-box{display:flex;width:500px;position:relative;}
+.search-input{flex:1;padding:14px 18px 14px 18px;border-radius:24px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.08);color:#fff;font-size:16px;backdrop-filter:blur(10px);}
+.search-input::placeholder{color:rgba(255,255,255,0.6);}
+.search-input:focus{outline:none;background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.2);}
+.search-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:8px 12px;border-radius:20px;background:transparent;color:#64b4ff;border:none;cursor:pointer;font-weight:600;font-size:12px;transition:all 0.2s;display:flex;align-items:center;justify-content:center;}
+.search-btn:hover{color:#7fc4ff;}
+
+
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:20;align-items:center;justify-content:center;}
+.modal.active{display:flex;}
+.modal-content{background:rgba(20,20,20,0.95);padding:28px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);width:380px;backdrop-filter:blur(10px);}
+.modal-content h3{margin:0 0 16px 0;color:#fff;font-size:18px;}
+.modal-field{margin-bottom:16px;}
+.modal-field label{display:block;color:rgba(255,255,255,0.7);font-size:12px;margin-bottom:6px;}
+.modal-field input{width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#fff;box-sizing:border-box;font-size:14px;}
+.modal-field input:focus{outline:none;background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2);}
+.modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;}
+.modal-btn{padding:8px 16px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#fff;cursor:pointer;font-size:13px;transition:all 0.2s;}
+.modal-btn:hover{background:rgba(255,255,255,0.12);}
+.modal-btn.danger{background:rgba(255,100,100,0.3);border-color:rgba(255,100,100,0.5);color:#ff6464;}
+.modal-btn.danger:hover{background:rgba(255,100,100,0.4);border-color:rgba(255,100,100,0.7);}
+.modal-btn.primary{background:rgba(100,180,255,0.3);border-color:rgba(100,180,255,0.5);color:#64b4ff;}
+.modal-btn.primary:hover{background:rgba(100,180,255,0.4);}
+
+#settingsBtn{position:fixed;bottom:20px;right:20px;z-index:10;background:rgba(255,255,255,0.06);padding:10px;border-radius:50%;cursor:pointer;border:none;color:#fff;width:48px;height:48px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+#settingsBtn:hover{background:rgba(255,255,255,0.12);}
+.material-symbols-outlined{font-size:24px;}
+
+#settingsPanel{position:fixed;bottom:80px;right:20px;width:340px;background:rgba(12,12,12,0.95);color:#eee;padding:16px;border-radius:12px;display:none;z-index:10;border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(10px);}
+#settingsPanel h3{margin:4px 0 12px 0;color:#fff;}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+label{width:110px;font-size:12px;color:#cfcfcf;}
+input[type=color],select{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#eee;}
+select{background:rgba(255,255,255,0.05);}
+.btn{padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.06);color:#fff;cursor:pointer;border:1px solid rgba(255,255,255,0.1);}
+.btn:hover{background:rgba(255,255,255,0.12);}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
-<div id="settingsBtn"><span class="material-symbols-outlined">settings</span></div>
-<div id="settingsPanel">
-<h3>Rain Settings</h3>
-<div class="row">
-<label>Preset</label>
-<select id="presetSelect">
-<option value="cats">Cats</option>
-<option value="hackerEng">Hacker Eng</option>
-<option value="hackerJP">Hacker JP</option>
-<option value="custom">Custom</option>
-</select>
+<div class="overlay">
+  <div class="search-container">
+    <div class="search-box">
+      <input type="text" class="search-input" id="searchInput" placeholder="Search Google..." />
+      <button class="search-btn" id="searchBtn" type="button"><span class="material-symbols-outlined">search</span></button>
+    </div>
+  </div>
 </div>
 
-<div id="customSettings">
+<button id="settingsBtn"><span class="material-symbols-outlined">settings</span></button>
+<div id="settingsPanel">
+  <h3>Rain Settings</h3>
   <div class="row">
-    <label>Emoji combos</label>
-    <textarea id="emojiInput">:3,OwO,-w-,3;</textarea>
+    <label>Preset</label>
+    <select id="presetSelect">
+      <option value="cats">Cats</option>
+      <option value="hackerEng">Hacker Eng</option>
+      <option value="hackerJP">Hacker JP</option>
+      <option value="custom">Custom</option>
+    </select>
   </div>
-  <div class="row"><label>Emoji color</label><input type="color" id="emojiColor" value="#8cff6b"></div>
-  <div class="row"><label>Background</label><input type="color" id="bgColor" value="#050705"></div>
-  <div class="row"><label>Count</label><input type="text" id="countInput" value="50"></div>
-  <div class="row"><button class="btn" id="applyBtn">Apply</button></div>
-</div>
+  <div id="customSettings">
+    <div class="row"><label>Emoji Color</label><input type="color" id="emojiColor" value="#8cff6b"></div>
+    <div class="row"><label>Background</label><input type="color" id="bgColor" value="#050705"></div>
+    <div class="row"><label>Count</label><input type="text" id="countInput" value="50"></div>
+    <div class="row"><button class="btn" id="applyBtn">Apply</button></div>
+  </div>
 </div>
 
 <script>
@@ -64,102 +97,82 @@ const PRESETS={
 };
 
 // ----- SETTINGS -----
-var settings={
-  preset:'hackerJP',
-  combos:[],
-  emojiColor:'#8cff6b',
-  bgColor:'#050705',
-  count:50
-};
+var settings={preset:'hackerJP',combos:[],emojiColor:'#8cff6b',bgColor:'#050705',count:50};
+var shortcuts=[];
 
 // ----- ELEMENTS -----
 const settingsBtn=document.getElementById('settingsBtn');
 const settingsPanel=document.getElementById('settingsPanel');
 const customSettings=document.getElementById('customSettings');
-const emojiInput=document.getElementById('emojiInput');
 const presetSelect=document.getElementById('presetSelect');
 const emojiColorInput=document.getElementById('emojiColor');
 const bgColorInput=document.getElementById('bgColor');
 const countInput=document.getElementById('countInput');
 const applyBtn=document.getElementById('applyBtn');
+const searchInput=document.getElementById('searchInput');
+const searchBtn=document.getElementById('searchBtn');
 
-settingsBtn.addEventListener('click',()=>{settingsPanel.style.display=(settingsPanel.style.display==='none'?'block':'none')});
+// ----- SEARCH -----
+searchBtn.addEventListener('click',e=>{
+  e.preventDefault();
+  const q=searchInput.value.trim();
+  if(q)window.location.href=`https://www.google.com/search?q=${encodeURIComponent(q)}`;
+});
+searchInput.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();searchBtn.click();}});
 
 // ----- DROPLETS -----
 class Droplet{
   constructor(){this.reset(true);}
-  reset(init=false){this.x=Math.random()*w; this.y=Math.random()*-h*(init?Math.random():1); this.size=18+Math.random()*18; this.speed=1+Math.random()*3; this.variant=randomVariant();}
+  reset(init=false){this.x=Math.random()*w;this.y=Math.random()*-h*(init?Math.random():1);this.size=18+Math.random()*18;this.speed=1+Math.random()*3;this.variant=randomVariant();}
   update(){this.y+=this.speed;if(this.y>h+50)this.reset();}
-  draw(){ctx.fillStyle=settings.emojiColor; ctx.font=this.size+'px Arial,system-ui,sans-serif'; ctx.fillText(this.variant,this.x,this.y);}
+  draw(){ctx.fillStyle=settings.emojiColor;ctx.font=this.size+'px Arial,system-ui,sans-serif';ctx.fillText(this.variant,this.x,this.y);}
 }
 
 class Particle{
-  constructor(x,y,char){this.x=x; this.y=y; this.vx=(Math.random()-0.5)*6; this.vy=(Math.random()-0.5)*6; this.size=10+Math.random()*15; this.life=30+Math.random()*20; this.maxLife=this.life; this.char=char;}
-  update(){this.x+=this.vx; this.y+=this.vy; this.life--;}
-  draw(){ctx.globalAlpha=this.life/this.maxLife; ctx.fillStyle=settings.emojiColor; ctx.font=this.size+'px Arial,system-ui,sans-serif'; ctx.fillText(this.char,this.x,this.y); ctx.globalAlpha=1;}
+  constructor(x,y,char){this.x=x;this.y=y;this.vx=(Math.random()-0.5)*6;this.vy=(Math.random()-0.5)*6;this.size=10+Math.random()*15;this.life=30+Math.random()*20;this.maxLife=this.life;this.char=char;}
+  update(){this.x+=this.vx;this.y+=this.vy;this.life--;}
+  draw(){ctx.globalAlpha=this.life/this.maxLife;ctx.fillStyle=settings.emojiColor;ctx.font=this.size+'px Arial,system-ui,sans-serif';ctx.fillText(this.char,this.x,this.y);ctx.globalAlpha=1;}
 }
 
 var droplets=[],particles=[];
-function createDroplets(){droplets=[]; for(let i=0;i<settings.count;i++)droplets.push(new Droplet());}
+function createDroplets(){droplets=[];for(let i=0;i<settings.count;i++)droplets.push(new Droplet());}
 function randomVariant(){
-  if(settings.preset==='hackerEng'){const cmds=PRESETS.hackerEng.combos.split(','); return cmds[Math.floor(Math.random()*cmds.length)];}
-  if(settings.preset==='hackerJP'){const chars=PRESETS.hackerJP.combos; return chars.charAt(Math.floor(Math.random()*chars.length));}
+  if(settings.preset==='hackerEng'){const cmds=PRESETS.hackerEng.combos.split(',');return cmds[Math.floor(Math.random()*cmds.length)];}
+  if(settings.preset==='hackerJP'){const chars=PRESETS.hackerJP.combos;return chars.charAt(Math.floor(Math.random()*chars.length));}
   return settings.combos[Math.floor(Math.random()*settings.combos.length)];
 }
 
-// ----- EXPLOSION -----
 canvas.addEventListener('click',e=>{
   for(let d of droplets){
-    if(Math.abs(e.clientX-d.x)<d.size && Math.abs(e.clientY-d.y)<d.size){
+    if(Math.abs(e.clientX-d.x)<d.size&&Math.abs(e.clientY-d.y)<d.size){
       const count=5+Math.floor(Math.random()*10);
       for(let i=0;i<count;i++)particles.push(new Particle(d.x,d.y,d.variant));
     }
   }
 });
 
-// ----- ANIMATE -----
-function animate(){
-  ctx.fillStyle=settings.bgColor;
-  ctx.fillRect(0,0,w,h);
-  for(let d of droplets){d.update(); d.draw();}
-  for(let i=particles.length-1;i>=0;i--){let p=particles[i]; p.update(); p.draw(); if(p.life<=0)particles.splice(i,1);}
-  requestAnimationFrame(animate);
-}
+// ----- SETTINGS -----
+settingsBtn.addEventListener('click',()=>{settingsPanel.style.display=(settingsPanel.style.display==='none'?'block':'none');});
 
-// ----- SAVE/LOAD LOCAL STORAGE -----
 function saveSettings(){
-  localStorage.setItem('emojiRainSettings',JSON.stringify(settings));
+  window.storage&&window.storage.set('rainSettings',JSON.stringify(settings)).catch(()=>{});
 }
 
-function loadSettings(){
-  const saved = localStorage.getItem('emojiRainSettings');
-  if(saved){
-    Object.assign(settings, JSON.parse(saved));
-  } else {
-    // default Hacker JP
-    applyPreset('hackerJP');
-  }
-
-  // Update input fields based on loaded settings
-  presetSelect.value = settings.preset;
-  emojiInput.value = settings.combos.join(',');
-  emojiColorInput.value = settings.emojiColor;
-  bgColorInput.value = settings.bgColor;
-  countInput.value = settings.count;
-
-  // Show/hide custom settings
-  if(settings.preset === 'custom'){
-    customSettings.classList.remove('hidden');
-  } else {
-    customSettings.classList.add('hidden');
-  }
-
-  // Create droplets immediately so rain starts on load
+async function loadSettings(){
+  try{
+    const result=await window.storage?.get('rainSettings');
+    if(result)Object.assign(settings,JSON.parse(result.value));
+    else applyPreset('hackerJP');
+  }catch(e){applyPreset('hackerJP');}
+  presetSelect.value=settings.preset;
+  emojiColorInput.value=settings.emojiColor;
+  bgColorInput.value=settings.bgColor;
+  countInput.value=settings.count;
+  if(settings.preset==='custom')customSettings.classList.remove('hidden');
+  else customSettings.classList.add('hidden');
   createDroplets();
 }
 
-
-// ----- APPLY SETTINGS -----
 function applyPreset(preset){
   const data=PRESETS[preset];
   settings.preset=preset;
@@ -167,8 +180,6 @@ function applyPreset(preset){
   settings.emojiColor=data.emojiColor;
   settings.bgColor=data.bgColor;
   settings.count=data.count;
-  // update inputs
-  emojiInput.value=data.combos;
   emojiColorInput.value=data.emojiColor;
   bgColorInput.value=data.bgColor;
   countInput.value=data.count;
@@ -178,7 +189,6 @@ function applyPreset(preset){
 
 function applyCustom(){
   settings.preset='custom';
-  settings.combos=emojiInput.value.split(',').map(s=>s.trim()).filter(Boolean);
   settings.emojiColor=emojiColorInput.value;
   settings.bgColor=bgColorInput.value;
   settings.count=parseInt(countInput.value)||50;
@@ -187,23 +197,23 @@ function applyCustom(){
 }
 
 applyBtn.addEventListener('click',applyCustom);
-
-// ----- DETECT FIELD CHANGES -----
-[emojiInput,emojiColorInput,bgColorInput,countInput].forEach(input=>{
-  input.addEventListener('input',()=>{
-    if(settings.preset!=='custom'){
-      settings.preset='custom';
-      presetSelect.value='custom';
-    }
-  });
+[emojiColorInput,bgColorInput,countInput].forEach(input=>{
+  input.addEventListener('input',()=>{if(settings.preset!=='custom'){settings.preset='custom';presetSelect.value='custom';}});
 });
-
-// ----- PRESET SELECT CHANGE -----
 presetSelect.addEventListener('change',()=>{
   const val=presetSelect.value;
-  if(val==='custom'){customSettings.classList.remove('hidden'); applyCustom();}
-  else{customSettings.classList.add('hidden'); applyPreset(val);}
+  if(val==='custom'){customSettings.classList.remove('hidden');applyCustom();}
+  else{customSettings.classList.add('hidden');applyPreset(val);}
 });
+
+// ----- ANIMATE -----
+function animate(){
+  ctx.fillStyle=settings.bgColor;
+  ctx.fillRect(0,0,w,h);
+  for(let d of droplets){d.update();d.draw();}
+  for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.update();p.draw();if(p.life<=0)particles.splice(i,1);}
+  requestAnimationFrame(animate);
+}
 
 // ----- INIT -----
 customSettings.classList.remove('hidden');
