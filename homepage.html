@@ -132,20 +132,32 @@ function saveSettings(){
 }
 
 function loadSettings(){
-  const saved=localStorage.getItem('emojiRainSettings');
+  const saved = localStorage.getItem('emojiRainSettings');
   if(saved){
-    Object.assign(settings,JSON.parse(saved));
-    // update inputs
-    presetSelect.value=settings.preset;
-    emojiInput.value=settings.combos.join(',');
-    emojiColorInput.value=settings.emojiColor;
-    bgColorInput.value=settings.bgColor;
-    countInput.value=settings.count;
-  }else{
+    Object.assign(settings, JSON.parse(saved));
+  } else {
     // default Hacker JP
     applyPreset('hackerJP');
   }
+
+  // Update input fields based on loaded settings
+  presetSelect.value = settings.preset;
+  emojiInput.value = settings.combos.join(',');
+  emojiColorInput.value = settings.emojiColor;
+  bgColorInput.value = settings.bgColor;
+  countInput.value = settings.count;
+
+  // Show/hide custom settings
+  if(settings.preset === 'custom'){
+    customSettings.classList.remove('hidden');
+  } else {
+    customSettings.classList.add('hidden');
+  }
+
+  // Create droplets immediately so rain starts on load
+  createDroplets();
 }
+
 
 // ----- APPLY SETTINGS -----
 function applyPreset(preset){
