@@ -155,15 +155,20 @@ canvas.addEventListener('click',e=>{
 settingsBtn.addEventListener('click',()=>{settingsPanel.style.display=(settingsPanel.style.display==='none'?'block':'none');});
 
 function saveSettings(){
-  window.storage&&window.storage.set('rainSettings',JSON.stringify(settings)).catch(()=>{});
+  localStorage.setItem('rainSettings',JSON.stringify(settings));
 }
 
-async function loadSettings(){
-  try{
-    const result=await window.storage?.get('rainSettings');
-    if(result)Object.assign(settings,JSON.parse(result.value));
-    else applyPreset('hackerJP');
-  }catch(e){applyPreset('hackerJP');}
+function loadSettings(){
+  const saved=localStorage.getItem('rainSettings');
+  if(saved){
+    try{
+      Object.assign(settings,JSON.parse(saved));
+    }catch(e){
+      applyPreset('hackerJP');
+    }
+  }else{
+    applyPreset('hackerJP');
+  }
   presetSelect.value=settings.preset;
   emojiColorInput.value=settings.emojiColor;
   bgColorInput.value=settings.bgColor;
