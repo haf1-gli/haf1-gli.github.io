@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Tab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=settings" />
+<style>
+body,html{margin:0;padding:0;height:100%;background:#050705;overflow:hidden;}
+canvas{display:block;}
+.material-symbols-outlined{color:white;cursor:pointer;}
+#settingsBtn{position:fixed;top:14px;right:14px;z-index:10;background:rgba(255,255,255,0.06);padding:6px;border-radius:10px;}
+#settingsPanel{position:fixed;top:60px;right:14px;width:320px;background:rgba(12,12,12,0.94);color:#eee;padding:12px;border-radius:12px;display:none;font-family:system-ui,Arial,sans-serif;z-index:10;}
+#settingsPanel h3{margin:4px 0;}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+label{width:110px;font-size:13px;color:#cfcfcf;}
+input[type=color],select,textarea,input[type=text]{flex:1;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background: rgba(255,255,255,0.02);color:#eee;}
+textarea{min-height:60px;resize:vertical;}
+.btn{padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.02);color:#fff;cursor:pointer;border:1px solid rgba(255,255,255,0.06);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="settingsBtn"><span class="material-symbols-outlined">settings</span></div>
+<div id="settingsPanel">
+<h3>Rain Settings</h3>
+<div class="row"><label>Preset</label>
+<select id="presetSelect">
+<option value="cats">Cats</option>
+<option value="hackerEng">Hacker Eng</option>
+<option value="hackerJP">Hacker JP</option>
+</select>
+</div>
+<div class="row"><label>Emoji combos</label><textarea id="emojiInput">:3,OwO,-w-,3;</textarea></div>
+<div class="row"><label>Emoji color</label><input type="color" id="emojiColor" value="#8cff6b"></div>
+<div class="row"><label>Background</label><input type="color" id="bgColor" value="#050705"></div>
+<div class="row"><label>Count</label><input type="text" id="countInput" value="50"></div>
+<div class="row"><button class="btn" id="applyBtn">Apply</button></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+var w = canvas.width = window.innerWidth;
+var h = canvas.height = window.innerHeight;
+
+window.addEventListener('resize', () => {
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+});
+
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
+settingsBtn.addEventListener('click',()=>settingsPanel.style.display=(settingsPanel.style.display==='none'?'block':'none'));
+
+let settings={
+  preset:'hackerJP',
+  combos:[':3','OwO','-w-','3;'],
+  emojiColor:'#8cff6b',
+  bgColor:'#050705',
+  count:50
+};
+
+const emojiInput=document.getElementById('emojiInput');
+const presetSelect=document.getElementById('presetSelect');
+const emojiColorInput=document.getElementById('emojiColor');
+const bgColorInput=document.getElementById('bgColor');
+const countInput=document.getElementById('countInput');
+const applyBtn=document.getElementById('applyBtn');
+
+class Droplet{
+  constructor(){this.reset(true);}
+  reset(init=false){
+    this.x=Math.random()*w;
+    this.y=Math.random()*-h*(init?Math.random():1);
+    this.size=18+Math.random()*18;
+    this.speed=1+Math.random()*3;
+    this.variant=randomVariant();
+  }
+  update(){this.y+=this.speed;if(this.y>h+50)this.reset();}
+  draw(){
+    ctx.fillStyle=settings.emojiColor;
+    ctx.font=this.size+'px Arial,system-ui,sans-serif';
+    ctx.fillText(this.variant,this.x,this.y);
+  }
+}
+
+class Particle{
+  constructor(x,y,char){
+    this.x=x;
+    this.y=y;
+    this.vx=(Math.random()-0.5)*6;
+    this.vy=(Math.random()-0.5)*6;
+    this.size=10+Math.random()*15;
+    this.life=30+Math.random()*20;
+    this.maxLife=this.life;
+    this.char=char;
+  }
+  update(){this.x+=this.vx; this.y+=this.vy; this.life--;}
+  draw(){
+    ctx.globalAlpha=this.life/this.maxLife;
+    ctx.fillStyle=settings.emojiColor;
+    ctx.font=this.size+'px Arial,system-ui,sans-serif';
+    ctx.fillText(this.char,this.x,this.y);
+    ctx.globalAlpha=1;
+  }
+}
+
+let droplets=[],particles=[];
+function createDroplets(){droplets=[];for(let i=0;i<settings.count;i++)droplets.push(new Droplet());}
+
+function randomVariant(){
+  if(settings.preset==='hackerEng'){
+    const cmds=['sudo','apt-get','git pull','ssh root@','rm -rf','echo hi'];
+    return cmds[Math.floor(Math.random()*cmds.length)];
+  }
+  if(settings.preset==='hackerJP'){
+    const chars='アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンあいうえおかきくけこ';
+    return chars.charAt(Math.floor(Math.random()*chars.length));
+  }
+  return settings.combos[Math.floor(Math.random()*settings.combos.length)];
+}
+
+canvas.addEventListener('click',e=>{
+  for(let d of droplets){
+    const dx=e.clientX-d.x;
+    const dy=e.clientY-d.y;
+    if(Math.abs(dx)<d.size && Math.abs(dy)<d.size){
+      const count = 5+Math.floor(Math.random()*10);
+      for(let i=0;i<count;i++)particles.push(new Particle(d.x,d.y,d.variant));
+    }
+  }
+});
+
+function animate(){
+  ctx.fillStyle=settings.bgColor;
+  ctx.fillRect(0,0,w,h);
+  for(let d of droplets){d.update();d.draw();}
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i]; p.update(); p.draw();
+    if(p.life<=0)particles.splice(i,1);
+  }
+  requestAnimationFrame(animate);
+}
+
+applyBtn.addEventListener('click',()=>{
+  settings.preset=presetSelect.value;
+  settings.combos=emojiInput.value.split(',').map(s=>s.trim()).filter(Boolean);
+  settings.emojiColor=emojiColorInput.value;
+  settings.bgColor=bgColorInput.value;
+  let n=parseInt(countInput.value)||50;
+  settings.count=n;
+  createDroplets();
+});
+
+presetSelect.value='hackerJP';
+createDroplets();
+animate();
+</script>
+</body>
+</html>
