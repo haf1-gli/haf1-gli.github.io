@@ -18,6 +18,7 @@ input[type=color],select,textarea,input[type=text]{flex:1;padding:6px 8px;border
 textarea{min-height:60px;resize:vertical;}
 select{color:#eee;background: rgba(255,255,255,0.02);}
 .btn{padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.02);color:#fff;cursor:pointer;border:1px solid rgba(255,255,255,0.06);}
+.hidden{display:none;}
 </style>
 </head>
 <body>
@@ -35,14 +36,17 @@ select{color:#eee;background: rgba(255,255,255,0.02);}
 <option value="custom">Custom</option>
 </select>
 </div>
-<div class="row">
-<label>Emoji combos</label>
-<textarea id="emojiInput">:3,OwO,-w-,3;</textarea>
+
+<div id="customSettings">
+  <div class="row">
+    <label>Emoji combos</label>
+    <textarea id="emojiInput">:3,OwO,-w-,3;</textarea>
+  </div>
+  <div class="row"><label>Emoji color</label><input type="color" id="emojiColor" value="#8cff6b"></div>
+  <div class="row"><label>Background</label><input type="color" id="bgColor" value="#050705"></div>
+  <div class="row"><label>Count</label><input type="text" id="countInput" value="50"></div>
+  <div class="row"><button class="btn" id="applyBtn">Apply</button></div>
 </div>
-<div class="row"><label>Emoji color</label><input type="color" id="emojiColor" value="#8cff6b"></div>
-<div class="row"><label>Background</label><input type="color" id="bgColor" value="#050705"></div>
-<div class="row"><label>Count</label><input type="text" id="countInput" value="50"></div>
-<div class="row"><button class="btn" id="applyBtn">Apply</button></div>
 </div>
 
 <script>
@@ -53,7 +57,7 @@ var h=canvas.height=window.innerHeight;
 window.addEventListener('resize',()=>{w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight;});
 
 var settings={
-  preset:'hackerJP',
+  preset:'custom',
   combos:[':3','OwO','-w-','3;'],
   emojiColor:'#8cff6b',
   bgColor:'#050705',
@@ -64,6 +68,7 @@ const settingsBtn=document.getElementById('settingsBtn');
 const settingsPanel=document.getElementById('settingsPanel');
 settingsBtn.addEventListener('click',()=>{settingsPanel.style.display=(settingsPanel.style.display==='none'?'block':'none')});
 
+const customSettings=document.getElementById('customSettings');
 const emojiInput=document.getElementById('emojiInput');
 const presetSelect=document.getElementById('presetSelect');
 const emojiColorInput=document.getElementById('emojiColor');
@@ -125,16 +130,19 @@ function animate(){
 
 applyBtn.addEventListener('click',applySettings);
 presetSelect.addEventListener('change',()=>{
-  if(presetSelect.value==='cats'){emojiInput.value=':3,OwO,-w-,3;'; settings.emojiColor='#ffffff'; settings.bgColor='#0b0b0d';}
-  if(presetSelect.value==='hackerEng'){emojiInput.value='sudo,rm -rf,git pull,ssh,echo'; settings.emojiColor='#8cff6b'; settings.bgColor='#050705';}
-  if(presetSelect.value==='hackerJP'){emojiInput.value='アイウエオカキクケコ...'; settings.emojiColor='#8cff6b'; settings.bgColor='#050705';}
-  if(presetSelect.value==='custom'){/* keep user text in emojiInput */}
+  const val=presetSelect.value;
+  settings.preset=val;
+  if(val==='custom'){customSettings.classList.remove('hidden');}
+  else{customSettings.classList.add('hidden');}
+  // preset default values
+  if(val==='cats'){emojiInput.value=':3,OwO,-w-,3;'; settings.emojiColor='#ffffff'; settings.bgColor='#0b0b0d'; settings.count=50;}
+  if(val==='hackerEng'){emojiInput.value='sudo,rm -rf,git pull,ssh,echo'; settings.emojiColor='#8cff6b'; settings.bgColor='#050705'; settings.count=50;}
+  if(val==='hackerJP'){emojiInput.value='アイウエオカキクケコ...'; settings.emojiColor='#8cff6b'; settings.bgColor='#050705'; settings.count=50;}
   applySettings();
 });
 
 function applySettings(){
-  settings.preset=presetSelect.value;
-  settings.combos=emojiInput.value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(settings.preset==='custom'){settings.combos=emojiInput.value.split(',').map(s=>s.trim()).filter(Boolean);}
   settings.emojiColor=emojiColorInput.value;
   settings.bgColor=bgColorInput.value;
   settings.count=parseInt(countInput.value)||50;
@@ -142,6 +150,7 @@ function applySettings(){
 }
 
 presetSelect.value='custom'; // default custom template
+customSettings.classList.remove('hidden');
 applySettings();
 animate();
 </script>
