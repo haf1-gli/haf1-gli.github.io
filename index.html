@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>:D</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .grid-item {
+            background-color: #2a2a2a;
+            padding: 15px;
+            border: 1px solid #444;
+            text-align: center;
+            text-decoration: none;
+            color: #e0e0e0;
+            display: inline-block;
+        }
+
+        .grid-item:hover {
+            background-color: #333333;
+        }
+
+        .error {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <h1>https://haf1-gli-github-io.vercel.app/</h1>
+    <p>yes, i know, a .vercel ON a github.io, but, it is what it is to keep api keys save</p>
+    <div id="container">Loading...</div>
+
+    <script>
+        async function loadGrid() {
+            try {
+                const response = await fetch('list.json');
+                if (!response.ok) throw new Error('Failed to load list.json');
+                
+                const data = await response.json();
+                displayGrid(data);
+            } catch (error) {
+                document.getElementById('container').innerHTML = 
+                    `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayGrid(items) {
+            const container = document.getElementById('container');
+            
+            if (!Array.isArray(items) || items.length === 0) {
+                container.innerHTML = '<div class="error">No items found</div>';
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'grid';
+
+            items.forEach(item => {
+                const link = document.createElement('a');
+                link.className = 'grid-item';
+                link.href = `/${item.directory}/index.html`;
+                link.textContent = item.name;
+                grid.appendChild(link);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(grid);
+        }
+
+        loadGrid();
+    </script>
+</body>
+</html>
