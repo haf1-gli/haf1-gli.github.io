@@ -80,7 +80,7 @@
             items.forEach(item => {
                 const link = document.createElement('a');
                 link.className = 'grid-item';
-                link.href = `/${item.directory}/index.html`;
+                link.href = `/${item.directory}/`;
                 link.textContent = item.name;
                 grid.appendChild(link);
             });
