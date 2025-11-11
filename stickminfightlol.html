@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Boxed Canvas - Multiplayer</title>
+    <!-- NEW: Added Tailwind for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Inter', sans-serif;
+        }
+        canvas {
+            display: block;
+            background-color: #000;
+        }
+        /* NEW: Styles for UI elements */
+        #start-screen {
+            background-color: rgba(30, 41, 59, 0.9);
+            border-radius: 12px;
+            border: 1px solid #334155;
+            z-index: 100;
+        }
+        #connection-modal {
+            background-color: rgba(30, 41, 59, 0.95);
+            border-radius: 12px;
+            border: 1px solid #334155;
+            z-index: 101;
+        }
+        #connection-modal textarea {
+            font-family: monospace;
+            font-size: 12px;
+            background-color: #020617;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #94a3b8;
+        }
+        #connection-modal button {
+            transition: all 0.2s ease;
+        }
+        /* Hide canvas initially */
+        #canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+
+    <!-- NEW: Start Screen -->
+    <div id="start-screen" class="p-8 rounded-lg shadow-xl text-white max-w-md w-full">
+        <h1 class="text-3xl font-bold text-center text-blue-400 mb-6">Stickman Battle</h1>
+        <div class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                <input type="text" id="username" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" value="Player">
+            </div>
+            <button id="host-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">Host Game</button>
+            <button id="join-button" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">Join Game</button>
+            <button id="single-player-button" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">Single Player (Test)</button>
+        </div>
+    </div>
+
+    <!-- NEW: Connection Modal -->
+    <div id="connection-modal" class="hidden absolute p-6 rounded-lg shadow-2xl text-white w-full max-w-lg">
+        <h2 id="modal-title" class="text-2xl font-bold mb-4">Connection Data</h2>
+        <p id="modal-instructions" class="text-gray-300 mb-4">Waiting for connection...</p>
+        <textarea id="modal-textarea" class="w-full h-40 p-2" readonly></textarea>
+        <div id="modal-input-group" class="hidden mt-4">
+            <label for="modal-input" class="block text-sm font-medium text-gray-300 mb-1">Paste Data Here:</label>
+            <textarea id="modal-input" class="w-full h-24 p-2"></textarea>
+            <button id="modal-submit" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Submit</button>
+        </div>
+        <div id="connection-status" class="mt-4 text-center text-yellow-400"></div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- NEW: UI Elements ---
+        const startScreen = document.getElementById('start-screen');
+        const connectionModal = document.getElementById('connection-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalInstructions = document.getElementById('modal-instructions');
+        const modalTextarea = document.getElementById('modal-textarea');
+        const modalInputGroup = document.getElementById('modal-input-group');
+        const modalInput = document.getElementById('modal-input');
+        const modalSubmit = document.getElementById('modal-submit');
+        const connectionStatus = document.getElementById('connection-status');
+
+        const hostButton = document.getElementById('host-button');
+        const joinButton = document.getElementById('join-button');
+        const singlePlayerButton = document.getElementById('single-player-button');
+        const usernameInput = document.getElementById('username');
+
+        // --- NEW: Game & Network State ---
+        let gameMode = 'menu'; // 'menu', 'single', 'host', 'client'
+        let peerConnection;
+        let dataChannel;
+        let iceServersConfig = null;
+        let localUsername = 'Player';
+        let remoteUsername = 'Opponent';
+        let isConnecting = false;
+
+        // --- Core Game Vars ---
+        const world_width = 800;
+        const world_height = 600;
+
+        let gravity = 0.08; 
+        const friction = 0.99;
+        const ground_friction = 0.9;
+        const bounce = 0.5;
+
+        const bobbingSpeed = 0.02;
+        const bobbingAmount = 2;
+
+        // --- REFACTORED: Local Player ---
+        let localPoints = [];
+        let localSticks = [];
+        let localTorsoPoints = [];
+        const localPlayer = {
+            heldWeapon: null,
+            nearestWeapon: null,
+            rightHand: null, 
+            rightElbow: null, 
+            headTop: null, 
+            canShoot: true,
+            punchCooldown: 500, 
+            canPunch: true,
+            isSpinningUp: false,
+            spinUpStartTime: 0,
+            activeLoopSound: null,
+            username: "Player 1" // Default
+        };
+        
+        // --- NEW: Remote Player ---
+        let remotePoints = [];
+        let remoteSticks = [];
+        const remotePlayer = {
+            heldWeapon: null,
+            headTop: null,
+            username: "Player 2" // Default
+        };
+
+        let particles = [];
+
+        const playerHealth = {
+            p1: 75, // Local player's health
+            p2: 50, // Remote player's health
+            maxHealth: 100
+        };
+
+        // --- Game State & Scoring ---
+        let gameState = {
+            p1Score: 0,
+            p2Score: 0,
+            isRoundActive: true,
+            roundWinner: null,
+            slowmoActive: false,
+            slowmoTime: 0,
+            slowmoDuration: 3000,
+            slowmoSpeed: 0.2
+        };
+
+        let weapons = [];
+        let bullets = [];
+        let bulletTrails = [];
+
+        // --- Image & Sound Loading ---
+        const pistol_img = new Image();
+        pistol_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/pistol.png';
+        const shotgun_img = new Image();
+        shotgun_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/shotgun.png';
+        const minigun_img = new Image();
+        minigun_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/minigun.png';
+        const katana_img = new Image();
+        katana_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/katana.png';
+        const knife_img = new Image();
+        knife_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/knife.png';
+        const sniper_img = new Image();
+        sniper_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/sniper.png';
+        const pistol_sound = new Audio('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/sounds/pistol-shot.mp3');
+        pistol_sound.preload = 'auto';
+        const shotgun_sound = new Audio('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/sounds/shotgun-shot.mp3');
+        shotgun_sound.preload = 'auto';
+        const minigun_loop_sound = new Audio('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/sounds/minigun-loop.mp3');
+        minigun_loop_sound.preload = 'auto';
+        minigun_loop_sound.loop = true;
+        const katana_sound = new Audio('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/sounds/sword-sound-effects-all-sounds-mp3cut_ItfeRU9.mp3');
+        katana_sound.preload = 'auto';
+        const sniper_sound = new Audio('https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/sounds/sniper-shot.mp3');
+        sniper_sound.preload = 'auto';
+        try {
+            pistol_sound.load();
+            shotgun_sound.load();
+            minigun_loop_sound.load();
+            katana_sound.load(); 
+            sniper_sound.load();
+        } catch (e) {
+            console.warn("Audio loading may require user interaction.");
+        }
+        
+        // ... (weaponTypes object remains the same) ...
+        const weaponTypes = {
+            'pistol': { image: pistol_img, sound: pistol_sound, ammo: 12, maxAmmo: 12, shootCooldown: 200, recoil: 5, bulletCount: 1, spread: 0.1, damage: 15, imgWidth: 30, imgHeight: 20 },
+            'shotgun': { image: shotgun_img, sound: shotgun_sound, ammo: 5, maxAmmo: 5, shootCooldown: 1000, recoil: 20, bulletCount: 6, spread: 0.5, damage: 10, imgWidth: 50, imgHeight: 15 },
+            'minigun': { image: minigun_img, sound: minigun_loop_sound, ammo: 100, maxAmmo: 100, shootCooldown: 50, spinUpTime: 2000, recoil: 2, bulletCount: 1, spread: 0.3, damage: 5, imgWidth: 60, imgHeight: 20 },
+            'sniper': { image: sniper_img, sound: sniper_sound, ammo: 3, maxAmmo: 3, shootCooldown: 1500, recoil: 30, bulletCount: 1, spread: 0, damage: 75, laser: true, imgWidth: 70, imgHeight: 20 },
+            'katana': { image: katana_img, sound: katana_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 500, recoil: 0, bulletCount: 0, spread: 0, damage: 40, imgWidth: 15 * 0.8, imgHeight: 60 * 0.8, melee: 'swing', meleeLength: 50 * 0.8 },
+            'knife': { image: knife_img, sound: null, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 300, recoil: 0, bulletCount: 0, spread: 0, damage: 25, imgWidth: 10, imgHeight: 30, melee: 'stab' }
+        };
+
+        let isDebugMode = false;
+        let canJump = true;
+        const jumpCooldownTime = 2000;
+        const keys = { a: false, d: false, space: false, e: false, q: false, f: false };
+        const mouse = { x: 0, y: 0 };
+
+        function updateMousePos(event) {
+            // ... (same as before) ...
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            mouse.x = (event.clientX - rect.left) * scaleX;
+            mouse.y = (event.clientY - rect.top) * scaleY;
+        }
+        canvas.addEventListener('mousemove', updateMousePos);
+        canvas.addEventListener('mousedown', (event) => {
+            updateMousePos(event);
+            if (event.button === 0) {
+                tryPunchOrStab();
+            }
+        });
+        
+        // ... (Map Data remains the same) ...
+        const grid_size = 20;
+        const grid_cols = world_width / grid_size;
+        const grid_rows = world_height / grid_size;
+        // --- FIX 1: Corrected mapsData variable ---
+        const mapsData = {
+            "maps": [
+                { 
+                    "name": "Arena", 
+                    "map": [
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1],
+                        [1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                    ], 
+                    "spawns": [{"x": 100, "y": 100}, {"x": 700, "y": 100}] 
+                }
+                // ... (potential other maps would go here)
+            ]
+        };
+        let map_data = [];
+        let spawnP1 = { x: 100, y: 100 };
+        let spawnP2 = { x: 700, y: 100 };
+        let currentMapIndex = 0;
+        let hasBorders = true;
+        let oobTimer = null;
+        const oobDuration = 1000;
+
+        function dist(p1, p2) {
+            // ... (same as before) ...
+            if (!p1 || !p2) return 0;
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function lerp(a, b, t) {
+            // ... (same as before) ...
+            return a + (b - a) * t;
+        }
+
+        function playSound(sound, volume) {
+            // ... (same as before) ...
+            try {
+                let s = sound.cloneNode();
+                s.volume = volume;
+                s.play().catch(e => {});
+            } catch (e) {
+                console.warn("Could not play sound", e);
+            }
+        }
+        
+        function stopMinigunSpin() {
+            // ... (same as before) ...
+            localPlayer.isSpinningUp = false;
+            if (localPlayer.activeLoopSound) {
+                localPlayer.activeLoopSound.pause();
+                localPlayer.activeLoopSound.currentTime = 0;
+                localPlayer.activeLoopSound = null;
+            }
+        }
+
+        function loadMap(index) {
+            // ... (same as before) ...
+            if (index < 0 || index >= mapsData.maps.length) {
+                console.error("Invalid map index:", index);
+                return;
+            }
+            currentMapIndex = index;
+            const map = mapsData.maps[currentMapIndex];
+            map_data = map.map;
+            spawnP1 = map.spawns[0] || { x: 100, y: 100 };
+            spawnP2 = map.spawns[1] || { x: 700, y: 100 };
+        }
+
+        function triggerPlayerDeath() {
+            // ... (same as before) ...
+            if (!gameState.isRoundActive) return;
+
+            // NEW: Opponent gets the point
+            if (gameMode !== 'single') {
+                gameState.p2Score++;
+                startSlowmoAndReset(remotePlayer.username);
+            } else {
+                // Single player, just reset
+                startSlowmoAndReset("You Died");
+            }
+            
+            // Explosion
+            if (localTorsoPoints.length > 0) {
+                let avg_x = 0;
+                let avg_y = 0;
+                for (let p of localTorsoPoints) {
+                    if (p) {
+                        avg_x += p.x;
+                        avg_y += p.y;
+                    }
+                }
+                avg_x /= localTorsoPoints.length;
+                avg_y /= localTorsoPoints.length;
+                
+                for (let i = 0; i < 30; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 10 + 5;
+                    particles.push({
+                        x: avg_x,
+                        y: avg_y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 60,
+                        radius: Math.random() * 5 + 3,
+                        isExplosion: true
+                    });
+                }
+            }
+            
+            playerHealth.p1 = 0;
+            // NEW: Send death message to opponent
+            if (gameMode !== 'single') {
+                sendData({ type: 'i_died' });
+            }
+        }
+
+        // --- NEW: Start slowmo and reset round ---
+        function startSlowmoAndReset(winnerName) {
+            gameState.isRoundActive = false;
+            gameState.roundWinner = winnerName;
+            gameState.slowmoActive = true;
+            gameState.slowmoTime = 0;
+
+            // This timer will run, and at the end, reset the round
+            // (Moved reset logic to the animate() function's slowmo check)
+        }
+
+        function createLocalRagdoll() {
+            localPoints = [];
+            localSticks = [];
+            localTorsoPoints = [];
+
+            const body_height = 80;
+            const head_size = body_height * 0.25;
+            const arm_length = body_height * 0.45;
+            const leg_length = body_height * 0.5;
+            const pointRadius = head_size * 0.2; 
+
+            // --- REFACTORED: Use localPoints, localSticks, localTorsoPoints, localPlayer ---
+            const start_x = (gameMode === 'client') ? spawnP2.x : spawnP1.x; // NEW: Spawn logic
+            const start_y = (gameMode === 'client') ? spawnP2.y : spawnP1.y;
+
+            const shoulder_point = { x: start_x, y: start_y, old_x: start_x, old_y: start_y, radius: pointRadius * 1.5 };
+            const hip_point = { x: start_x, y: shoulder_point.y + (body_height * 0.3), old_x: start_x, old_y: shoulder_point.y + (body_height * 0.3), radius: pointRadius * 1.5 };
+            localPoints.push(shoulder_point, hip_point);
+            localSticks.push({ p1: shoulder_point, p2: hip_point, length: dist(shoulder_point, hip_point), visible: true, type: 'limb' });
+            localTorsoPoints.push(shoulder_point, hip_point);
+
+            const h_top = { x: shoulder_point.x, y: shoulder_point.y - head_size, old_x: shoulder_point.x, old_y: shoulder_point.y - head_size, radius: pointRadius };
+            const h_left = { x: shoulder_point.x - head_size / 2, y: shoulder_point.y - head_size / 2, old_x: shoulder_point.x - head_size / 2, old_y: shoulder_point.y - head_size / 2, radius: pointRadius };
+            const h_right = { x: shoulder_point.x + head_size / 2, y: shoulder_point.y - head_size / 2, old_x: shoulder_point.x + head_size / 2, old_y: shoulder_point.y - head_size / 2, radius: pointRadius };
+            localPoints.push(h_top, h_left, h_right);
+            localPlayer.headTop = h_top;
+            
+            localSticks.push({ p1: h_top, p2: h_left, length: dist(h_top, h_left), visible: true, type: 'head' });
+            localSticks.push({ p1: h_top, p2: h_right, length: dist(h_top, h_right), visible: true, type: 'head' });
+            localSticks.push({ p1: shoulder_point, p2: h_left, length: dist(shoulder_point, h_left), visible: true, type: 'head' });
+            localSticks.push({ p1: shoulder_point, p2: h_right, length: dist(shoulder_point, h_right), visible: true, type: 'head' });
+            localSticks.push({ p1: h_left, p2: h_right, length: dist(h_left, h_right), visible: true, type: 'head' });
+            localTorsoPoints.push(h_top, h_left, h_right);
+
+            const l_elbow = { x: shoulder_point.x - arm_length / 2, y: shoulder_point.y + arm_length / 2, old_x: shoulder_point.x - arm_length / 2, old_y: shoulder_point.y + arm_length / 2, radius: pointRadius };
+            const l_hand = { x: shoulder_point.x - arm_length, y: shoulder_point.y + arm_length, old_x: shoulder_point.x - arm_length, old_y: shoulder_point.y + arm_length, radius: pointRadius };
+            localPoints.push(l_elbow, l_hand);
+            localSticks.push({ p1: shoulder_point, p2: l_elbow, length: arm_length / 2, visible: true, type: 'limb' });
+            localSticks.push({ p1: l_elbow, p2: l_hand, length: arm_length / 2, visible: true, type: 'limb' });
+
+            const r_elbow = { x: shoulder_point.x + arm_length / 2, y: shoulder_point.y + arm_length / 2, old_x: shoulder_point.x + arm_length / 2, old_y: shoulder_point.y + arm_length / 2, radius: pointRadius };
+            const r_hand = { x: shoulder_point.x + arm_length, y: shoulder_point.y + arm_length, old_x: shoulder_point.x + arm_length, old_y: shoulder_point.y + arm_length, radius: pointRadius };
+            localPoints.push(r_elbow, r_hand);
+            localSticks.push({ p1: shoulder_point, p2: r_elbow, length: arm_length / 2, visible: true, type: 'limb' });
+            localSticks.push({ p1: r_elbow, p2: r_hand, length: arm_length / 2, visible: true, type: 'limb' });
+            localPlayer.rightHand = r_hand;
+            localPlayer.rightElbow = r_elbow;
+
+            const l_knee = { x: hip_point.x - leg_length / 2, y: hip_point.y + leg_length / 2, old_x: hip_point.x - leg_length / 2, old_y: hip_point.y + leg_length / 2, radius: pointRadius };
+            const l_foot = { x: hip_point.x - leg_length, y: hip_point.y + leg_length, old_x: hip_point.x - leg_length, old_y: hip_point.y + leg_length, radius: pointRadius };
+            localPoints.push(l_knee, l_foot);
+            localSticks.push({ p1: hip_point, p2: l_knee, length: leg_length / 2, visible: true, type: 'limb' });
+            localSticks.push({ p1: l_knee, p2: l_foot, length: leg_length / 2, visible: true, type: 'limb' });
+
+            const r_knee = { x: hip_point.x + leg_length / 2, y: hip_point.y + leg_length / 2, old_x: hip_point.x + leg_length / 2, old_y: hip_point.y + leg_length / 2, radius: pointRadius };
+            const r_foot = { x: hip_point.x + leg_length, y: hip_point.y + leg_length, old_x: hip_point.x + leg_length, old_y: hip_point.y + leg_length, radius: pointRadius };
+            localPoints.push(r_knee, r_foot);
+            localSticks.push({ p1: hip_point, p2: r_knee, length: leg_length / 2, visible: true, type: 'limb' });
+            localSticks.push({ p1: r_knee, p2: r_foot, length: leg_length / 2, visible: true, type: 'limb' });
+        }
+        
+        // --- NEW: Create remote ragdoll (non-physical) ---
+        function createRemoteRagdoll() {
+            remotePoints = [];
+            remoteSticks = [];
+            
+            // Create placeholder points. These will be updated by network data.
+            const body_height = 80;
+            const head_size = body_height * 0.25;
+            const arm_length = body_height * 0.45;
+            const leg_length = body_height * 0.5;
+            const pointRadius = head_size * 0.2; 
+            const start_x = (gameMode === 'client') ? spawnP1.x : spawnP2.x;
+            const start_y = (gameMode === 'client') ? spawnP1.y : spawnP2.y;
+
+            const shoulder_point = { x: start_x, y: start_y, radius: pointRadius * 1.5 };
+            const hip_point = { x: start_x, y: shoulder_point.y + (body_height * 0.3), radius: pointRadius * 1.5 };
+            remotePoints.push(shoulder_point, hip_point);
+            remoteSticks.push({ p1: shoulder_point, p2: hip_point, visible: true, type: 'limb' });
+
+            const h_top = { x: shoulder_point.x, y: shoulder_point.y - head_size, radius: pointRadius };
+            const h_left = { x: shoulder_point.x - head_size / 2, y: shoulder_point.y - head_size / 2, radius: pointRadius };
+            const h_right = { x: shoulder_point.x + head_size / 2, y: shoulder_point.y - head_size / 2, radius: pointRadius };
+            remotePoints.push(h_top, h_left, h_right);
+            remotePlayer.headTop = h_top;
+            
+            remoteSticks.push({ p1: h_top, p2: h_left, visible: true, type: 'head' });
+            remoteSticks.push({ p1: h_top, p2: h_right, visible: true, type: 'head' });
+            remoteSticks.push({ p1: shoulder_point, p2: h_left, visible: true, type: 'head' });
+            remoteSticks.push({ p1: shoulder_point, p2: h_right, visible: true, type: 'head' });
+            remoteSticks.push({ p1: h_left, p2: h_right, visible: true, type: 'head' });
+
+            const l_elbow = { x: shoulder_point.x - arm_length / 2, y: shoulder_point.y + arm_length / 2, radius: pointRadius };
+            const l_hand = { x: shoulder_point.x - arm_length, y: shoulder_point.y + arm_length, radius: pointRadius };
+            remotePoints.push(l_elbow, l_hand);
+            remoteSticks.push({ p1: shoulder_point, p2: l_elbow, visible: true, type: 'limb' });
+            remoteSticks.push({ p1: l_elbow, p2: l_hand, visible: true, type: 'limb' });
+
+            const r_elbow = { x: shoulder_point.x + arm_length / 2, y: shoulder_point.y + arm_length / 2, radius: pointRadius };
+            const r_hand = { x: shoulder_point.x + arm_length, y: shoulder_point.y + arm_length, radius: pointRadius };
+            remotePoints.push(r_elbow, r_hand);
+            remoteSticks.push({ p1: shoulder_point, p2: r_elbow, visible: true, type: 'limb' });
+            remoteSticks.push({ p1: r_elbow, p2: r_hand, visible: true, type: 'limb' });
+
+            const l_knee = { x: hip_point.x - leg_length / 2, y: hip_point.y + leg_length / 2, radius: pointRadius };
+            const l_foot = { x: hip_point.x - leg_length, y: hip_point.y + leg_length, radius: pointRadius };
+            remotePoints.push(l_knee, l_foot);
+            remoteSticks.push({ p1: hip_point, p2: l_knee, visible: true, type: 'limb' });
+            remoteSticks.push({ p1: l_knee, p2: l_foot, visible: true, type: 'limb' });
+
+            const r_knee = { x: hip_point.x + leg_length / 2, y: hip_point.y + leg_length / 2, radius: pointRadius };
+            const r_foot = { x: hip_point.x + leg_length, y: hip_point.y + leg_length, radius: pointRadius };
+            remotePoints.push(r_knee, r_foot);
+            remoteSticks.push({ p1: hip_point, p2: r_knee, visible: true, type: 'limb' });
+            remoteSticks.push({ p1: r_knee, p2: r_foot, visible: true, type: 'limb' });
+        }
+
+        // --- NEW: Update remote ragdoll from network data ---
+        function updateRemoteRagdoll(data) {
+            if (!data || !data.points) return;
+            
+            // Update points
+            for (let i = 0; i < data.points.length; i++) {
+                if (remotePoints[i] && data.points[i]) {
+                    remotePoints[i].x = data.points[i].x;
+                    remotePoints[i].y = data.points[i].y;
+                    remotePoints[i].radius = data.points[i].radius;
+                }
+            }
+            
+            // Update remote player's weapon
+            if (data.weapon) {
+                remotePlayer.heldWeapon = {
+                    type: data.weapon.type,
+                    tip: data.weapon.tip,
+                    laser: data.weapon.laser,
+                    isFlipped: data.weapon.isFlipped,
+                    angle: data.weapon.angle,
+                    hand: data.weapon.hand,
+                    melee: data.weapon.melee
+                };
+            } else {
+                remotePlayer.heldWeapon = null;
+            }
+
+            // Update headtop
+            if (data.headTop) {
+                if (!remotePlayer.headTop) { // Failsafe
+                    remotePlayer.headTop = { x: 0, y: 0 };
+                }
+                remotePlayer.headTop.x = data.headTop.x;
+                remotePlayer.headTop.y = data.headTop.y;
+            }
+
+            // Update ammo display for remote player
+            remotePlayer.ammoText = data.ammoText;
+        }
+
+
+        function resetPlayer() {
+            // --- REFACTORED: For local player ---
+            if (localPlayer.heldWeapon) {
+                stopMinigunSpin();
+                localPlayer.heldWeapon.isHeld = false;
+                localPlayer.heldWeapon.despawnTimer = Date.now();
+                localPlayer.heldWeapon = null;
+            }
+            
+            localPlayer.isSpinningUp = false;
+            localPlayer.canShoot = true;
+            localPlayer.canPunch = true;
+            
+            playerHealth.p1 = playerHealth.maxHealth;
+            // NEW: Reset P2 health as well
+            playerHealth.p2 = playerHealth.maxHealth;
+            
+            createLocalRagdoll();
+            if (gameMode !== 'single') {
+                createRemoteRagdoll(); // Re-create placeholder
+            }
+            
+            oobTimer = null;
+        }
+
+        function updatePoints(pointArray) {
+            // ... (same as before, but now applies to `localPoints`) ...
+            const max_vx = 10; 
+
+            for (let p of pointArray) {
+                let vx = (p.x - p.old_x) * friction;
+                let vy = (p.y - p.old_y) * friction;
+
+                if (pointArray === localPoints) {
+                    if (vx > max_vx) vx = max_vx;
+                    if (vx < -max_vx) vx = -max_vx;
+                }
+                
+                p.old_x = p.x;
+                p.old_y = p.y;
+
+                p.x += vx;
+                p.y += vy;
+                p.y += gravity * (gameState.slowmoActive ? gameState.slowmoSpeed : 1);
+            }
+        }
+
+        function updateSticks(stickArray) {
+            // ... (same as before, but now applies to `localSticks`) ...
+            for (let i = 0; i < 5; i++) {
+                for (let s of stickArray) {
+                    if (!s.p1 || !s.p2) continue;
+                    let dx = s.p2.x - s.p1.x;
+                    let dy = s.p2.y - s.p1.y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+                    let difference = s.length - distance;
+                    let percent = (distance > 0.001) ? difference / distance / 2 : 0;
+                    let offsetX = dx * percent;
+                    let offsetY = dy * percent;
+
+                    s.p1.x -= offsetX;
+                    s.p1.y -= offsetY;
+                    s.p2.x += offsetX;
+                    s.p2.y += offsetY;
+                }
+            }
+        }
+
+        function handleCollisions() {
+            // --- REFACTORED: Applies to localPoints ---
+            for (let i = 0; i < localPoints.length; i++) {
+                let p1 = localPoints[i];
+                for (let j = i + 1; j < localPoints.length; j++) {
+                    let p2 = localPoints[j];
+                    
+                    let connected = false;
+                    for(let s of localSticks) {
+                        if((s.p1 === p1 && s.p2 === p2) || (s.p1 === p2 && s.p2 === p1)) {
+                            connected = true;
+                            break;
+                        }
+                    }
+
+                    if (!connected) {
+                        // ... (collision physics same as before) ...
+                        let dx = p2.x - p1.x;
+                        let dy = p2.y - p1.y;
+                        let distance = Math.sqrt(dx * dx + dy * dy);
+                        let min_dist = p1.radius + p2.radius;
+
+                        if (distance < min_dist) {
+                            let difference = min_dist - distance;
+                            let percent = (distance > 0.001) ? difference / distance / 2 : 0;
+                            let offsetX = dx * percent;
+                            let offsetY = dy * percent;
+
+                            p1.x -= offsetX;
+                            p1.y -= offsetY;
+                            p2.x += offsetX;
+                            p2.y += offsetY;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ... (handleMapCollisions, constrainToWorldBounds, createSmoke, updateParticles, spawnWeapon, isPointInWall, raycast remain the same) ...
+        // Note: These are generic physics functions that will be applied to `localPoints` or `weapon.p`
+        function handleMapCollisions(point) {
+            if (!point) return;
+            let vx = (point.x - point.old_x) * friction;
+            let vy = (point.y - point.old_y) * friction;
+            let grid_x = Math.floor(point.x / grid_size);
+            let grid_y = Math.floor(point.y / grid_size);
+            for (let cy = grid_y - 1; cy <= grid_y + 1; cy++) {
+                for (let cx = grid_x - 1; cx <= grid_x + 1; cx++) {
+                    if (cx < 0 || cx >= grid_cols || cy < 0 || cy >= grid_rows) continue;
+                    if (!map_data[cy] || map_data[cy][cx] !== 1) continue;
+                    const rect_x = cx * grid_size;
+                    const rect_y = cy * grid_size;
+                    let closest_x = Math.max(rect_x, Math.min(point.x, rect_x + grid_size));
+                    let closest_y = Math.max(rect_y, Math.min(point.y, rect_y + grid_size));
+                    let dist_x = point.x - closest_x;
+                    let dist_y = point.y - closest_y;
+                    let distance = Math.sqrt(dist_x * dist_x + dist_y * dist_y);
+                    if (distance < point.radius) {
+                        let overlap = point.radius - distance;
+                        if (distance > 0.001) {
+                            let norm_x = dist_x / distance;
+                            let norm_y = dist_y / distance;
+                            point.x += norm_x * overlap;
+                            point.y += norm_y * overlap;
+                            let dot = vx * norm_x + vy * norm_y;
+                            if (Math.abs(norm_x) > Math.abs(norm_y)) {
+                                point.old_x = point.x + (vx - 2 * dot * norm_x) * bounce;
+                                point.old_y = point.y + (vy - 2 * dot * norm_y) * bounce * 0.1; 
+                            } else {
+                                point.old_x = point.x + (vx - 2 * dot * norm_x) * bounce * 0.1; 
+                                point.old_y = point.y + (vy - 2 * dot * norm_y) * bounce;
+                                if (norm_y < -0.5) {
+                                    point.old_x = point.x - vx * ground_friction;
+                                }
+                            }
+                        } else {
+                            point.y -= overlap; 
+                            point.old_y = point.y;
+                        }
+                    }
+                }
+            }
+        }
+        function constrainToWorldBounds(p) {
+            if (!p || !hasBorders) return;
+            if (gameState.slowmoActive) return;
+            let vx = (p.x - p.old_x) * friction;
+            let vy = (p.y - p.old_y) * friction;
+            if (p.x - p.radius < 0) { p.x = p.radius; p.old_x = p.x + vx * bounce; }
+            if (p.x + p.radius > world_width) { p.x = world_width - p.radius; p.old_x = p.x + vx * bounce; }
+            if (p.y + p.radius > world_height) { p.y = world_height - p.radius; p.old_y = p.y + vy * bounce; p.old_x = p.x - vx * ground_friction; }
+            if (p.y - p.radius < 0) { p.y = p.radius; p.old_y = p.y + vy * bounce; }
+        }
+        function createSmoke(x, y) {
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() * -3) - 1, life: Math.random() * 60 + 30, radius: Math.random() * 3 + 1 });
+            }
+        }
+        function updateParticles() {
+            const slowmoScale = gameState.slowmoActive ? gameState.slowmoSpeed : 1;
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx * slowmoScale;
+                p.y += p.vy * slowmoScale;
+                p.vy += 0.05;
+                p.life--;
+                if (p.life <= 0) { particles.splice(i, 1); }
+            }
+        }
+        function spawnWeapon() {
+            const lootTable = Object.keys(weaponTypes);
+            const randomType = lootTable[Math.floor(Math.random() * lootTable.length)];
+            const weaponDef = weaponTypes[randomType];
+            const x = Math.random() * (world_width - 100) + 50; 
+            const y = -20; 
+            weapons.push({ type: randomType, p: { x: x, y: y, old_x: x, old_y: y, radius: 10 }, isHeld: false, ammo: weaponDef.ammo, maxAmmo: weaponDef.maxAmmo, despawnTimer: null, pickupDelayTimer: null, bobbingAngle: Math.random() * Math.PI * 2, tip: { x: x, y: y - (weaponDef.meleeLength || 0), old_x: x, old_y: y - (weaponDef.meleeLength || 0) } });
+        }
+        function isPointInWall(x, y) {
+            let grid_x = Math.floor(x / grid_size);
+            let grid_y = Math.floor(y / grid_size);
+            if (grid_x < 0 || grid_x >= grid_cols || grid_y < 0 || grid_y >= grid_rows) {
+                return !hasBorders;
+            }
+            return (map_data[grid_y] && map_data[grid_y][grid_x] === 1);
+        }
+        function raycast(startX, startY, normX, normY) {
+            let x = startX;
+            let y = startY;
+            const step = 5;
+            for (let i = 0; i < 200; i++) {
+                x += normX * step;
+                y += normY * step;
+                if (isPointInWall(x, y) || (hasBorders && (x < 0 || x > world_width || y < 0 || y > world_height))) {
+                    return { x, y };
+                }
+            }
+            return { x, y };
+        }
+        
+        function applyJump() {
+            // --- REFACTORED: Applies to localPoints ---
+            if (!canJump) return; 
+            const jumpForce = 81; 
+            if (localPoints[2]) { localPoints[2].old_y += jumpForce; }
+            if (localPoints[10] && localPoints[12]) {
+                createSmoke(localPoints[10].x, localPoints[10].y); 
+                createSmoke(localPoints[12].x, localPoints[12].y); 
+            }
+            canJump = false;
+            setTimeout(() => { canJump = true; }, jumpCooldownTime);
+        }
+
+        function tryPunchOrStab() {
+            // --- REFACTORED: Applies to localPlayer ---
+            if (!localPlayer.canPunch || !localPlayer.rightHand) return;
+
+            let punchForce = 30;
+            let cooldown = localPlayer.punchCooldown;
+            let damage = 5;
+            
+            if (localPlayer.heldWeapon) {
+                const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+                if (weaponDef.melee === 'stab') {
+                    if (localPlayer.canShoot) {
+                        punchForce = 40;
+                        cooldown = weaponDef.shootCooldown;
+                        damage = weaponDef.damage;
+                        localPlayer.canShoot = false;
+                        setTimeout(() => localPlayer.canShoot = true, cooldown);
+                    } else {
+                        return;
+                    }
+                } else {
+                    return;
+                }
+            } else {
+                localPlayer.canPunch = false;
+                setTimeout(() => {
+                    localPlayer.canPunch = true;
+                }, cooldown);
+            }
+
+            const hand = localPlayer.rightHand;
+            let dx = mouse.x - hand.x;
+            let dy = mouse.y - hand.y;
+            const dist_to_mouse = Math.sqrt(dx * dx + dy * dy);
+            if (dist_to_mouse < 1) return; 
+            let norm_x = dx / dist_to_mouse;
+            let norm_y = dy / dist_to_mouse;
+            hand.old_x -= norm_x * punchForce;
+            hand.old_y -= norm_y * punchForce;
+        }
+
+        function applyPlayerInput() {
+            // --- REFACTORED: Applies to localPlayer and localTorsoPoints ---
+            let moveForce = 0.3;
+            if (localPlayer.heldWeapon) {
+                moveForce *= 1.5;
+            }
+            if (keys.a) {
+                for(let p of localTorsoPoints) { if (p) p.old_x += moveForce; }
+            }
+            if (keys.d) {
+                for(let p of localTorsoPoints) { if (p) p.old_x -= moveForce; }
+            }
+
+            if (keys.q && localPlayer.heldWeapon) {
+                stopMinigunSpin();
+                // NEW: Send weapon drop event
+                if (gameMode !== 'single') {
+                    sendData({ type: 'weapon_drop' });
+                }
+
+                localPlayer.heldWeapon.isHeld = false;
+                localPlayer.heldWeapon.despawnTimer = Date.now(); 
+                localPlayer.heldWeapon.pickupDelayTimer = Date.now(); 
+                if (localPlayer.heldWeapon.ammo <= 0) {
+                    localPlayer.heldWeapon.despawnTimer -= 20000; 
+                }
+                localPlayer.heldWeapon.p.old_x += (Math.random() - 0.5) * 2; 
+                localPlayer.heldWeapon.p.old_y -= 1; 
+                localPlayer.heldWeapon = null;
+                keys.q = false; 
+            }
+            
+            if (keys.f && localPlayer.nearestWeapon && !localPlayer.heldWeapon) {
+                localPlayer.heldWeapon = localPlayer.nearestWeapon;
+                localPlayer.heldWeapon.isHeld = true;
+                
+                // NEW: Send weapon pickup event
+                if (gameMode !== 'single') {
+                    sendData({ type: 'weapon_pickup', weaponType: localPlayer.heldWeapon.type });
+                }
+                
+                localPlayer.heldWeapon.p.old_x = localPlayer.rightHand.old_x;
+                localPlayer.heldWeapon.p.old_y = localPlayer.rightHand.old_y;
+                localPlayer.heldWeapon.p.x = localPlayer.rightHand.x;
+                localPlayer.heldWeapon.p.y = localPlayer.rightHand.y;
+                
+                localPlayer.nearestWeapon = null; 
+                keys.f = false; 
+            }
+
+            if (keys.e) {
+                if (localPlayer.heldWeapon) {
+                    const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+                    if (weaponDef.melee) {
+                        if (weaponDef.melee === 'stab') {
+                            tryPunchOrStab();
+                        }
+                        keys.e = false; 
+                        return;
+                    }
+                    if (weaponDef.spinUpTime) {
+                        if (localPlayer.heldWeapon.ammo <= 0) {
+                            stopMinigunSpin();
+                            return;
+                        }
+                        if (!localPlayer.isSpinningUp) {
+                            localPlayer.isSpinningUp = true;
+                            localPlayer.spinUpStartTime = Date.now();
+                            if (localPlayer.activeLoopSound) localPlayer.activeLoopSound.pause();
+                            localPlayer.activeLoopSound = weaponDef.sound.cloneNode();
+                            localPlayer.activeLoopSound.loop = true;
+                            localPlayer.activeLoopSound.playbackRate = 0.1; 
+                            localPlayer.activeLoopSound.volume = 0.01; 
+                            localPlayer.activeLoopSound.play().catch(e => {});
+                        }
+                        const spinTime = Date.now() - localPlayer.spinUpStartTime;
+                        const spinProgress = Math.min(1, spinTime / weaponDef.spinUpTime);
+                        if (localPlayer.activeLoopSound) {
+                            localPlayer.activeLoopSound.playbackRate = 0.1 + (0.9 * spinProgress); 
+                            localPlayer.activeLoopSound.volume = 0.01 + (0.39 * spinProgress); 
+                        }
+                        if (spinTime > weaponDef.spinUpTime) {
+                            if (localPlayer.canShoot) {
+                                localPlayer.heldWeapon.ammo--; 
+                                const hand = localPlayer.rightHand;
+                                const elbow = localPlayer.rightElbow;
+                                let dx = hand.x - elbow.x;
+                                let dy = hand.y - elbow.y;
+                                const hand_dist = Math.sqrt(dx * dx + dy * dy);
+                                let base_norm_x = (hand_dist > 0) ? dx / hand_dist : 1;
+                                let base_norm_y = (hand_dist > 0) ? dy / hand_dist : 0;
+                                const spreadAngle = (Math.random() - 0.5) * weaponDef.spread;
+                                const norm_x = base_norm_x * Math.cos(spreadAngle) - base_norm_y * Math.sin(spreadAngle);
+                                const norm_y = base_norm_x * Math.sin(spreadAngle) + base_norm_y * Math.cos(spreadAngle);
+                                bullets.push({ x: hand.x + norm_x * 20, y: hand.y + norm_y * 20, old_x: hand.x - norm_x * 20, old_y: hand.y - norm_y * 20, life: 100, damage: weaponDef.damage });
+                                hand.old_x += base_norm_x * weaponDef.recoil; 
+                                hand.old_y += base_norm_y * weaponDef.recoil;
+                                localPlayer.canShoot = false;
+                                setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown); 
+                            }
+                        }
+                    } else {
+                        if (localPlayer.canShoot) {
+                            if (localPlayer.heldWeapon.ammo <= 0) {
+                            } else {
+                                localPlayer.heldWeapon.ammo--; 
+                                playSound(weaponDef.sound, 0.2); 
+                                const hand = localPlayer.rightHand;
+                                const elbow = localPlayer.rightElbow;
+                                let dx = hand.x - elbow.x;
+                                let dy = hand.y - elbow.y;
+                                const hand_dist = Math.sqrt(dx * dx + dy * dy);
+                                let base_norm_x = (hand_dist > 0) ? dx / hand_dist : 1;
+                                let base_norm_y = (hand_dist > 0) ? dy / hand_dist : 0;
+                                for (let i = 0; i < weaponDef.bulletCount; i++) {
+                                    const spreadAngle = (Math.random() - 0.5) * weaponDef.spread;
+                                    const norm_x = base_norm_x * Math.cos(spreadAngle) - base_norm_y * Math.sin(spreadAngle);
+                                    const norm_y = base_norm_x * Math.sin(spreadAngle) + base_norm_y * Math.cos(spreadAngle);
+                                    bullets.push({ x: hand.x + norm_x * 20, y: hand.y + norm_y * 20, old_x: hand.x - norm_x * 20, old_y: hand.y - norm_y * 20, life: 100, damage: weaponDef.damage });
+                                }
+                                hand.old_x += base_norm_x * weaponDef.recoil; 
+                                hand.old_y += base_norm_y * weaponDef.recoil;
+                                localPlayer.canShoot = false;
+                                setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown); 
+                            }
+                        }
+                        keys.e = false; 
+                    }
+                } else if (!localPlayer.heldWeapon) {
+                    tryPunchOrStab();
+                    keys.e = false; 
+                }
+            }
+        }
+        
+        function applyUprightForce() {
+            // --- REFACTORED: Applies to localPoints ---
+            const uprightForce = 0.03; 
+            const torsoUprightStrength = 0.05; 
+            if (localPoints[2]) {
+                localPoints[2].y -= uprightForce;
+            }
+            if (localPoints.length < 2) return; 
+            const shoulder_point = localPoints[0];
+            const hip_point = localPoints[1];
+            if (!shoulder_point || !hip_point) return;
+            const dx = shoulder_point.x - hip_point.x;
+            shoulder_point.old_x += dx * torsoUprightStrength;
+            hip_point.old_x -= dx * torsoUprightStrength;
+        }
+
+        function applyAimingForce() {
+            // --- REFACTORED: Applies to localPlayer ---
+            if (!localPlayer.heldWeapon || !localPlayer.rightHand || !localPlayer.rightElbow) return;
+            const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+            if (weaponDef.melee && weaponDef.melee !== 'swing') { return; }
+            const armAimStrength = 0.1;
+            const hand = localPlayer.rightHand;
+            const elbow = localPlayer.rightElbow;
+            let desired_dx = mouse.x - elbow.x;
+            let desired_dy = mouse.y - elbow.y;
+            let current_dx = hand.x - elbow.x;
+            let current_dy = hand.y - elbow.y;
+            let force_x = (desired_dx - current_dx) * armAimStrength;
+            let force_y = (desired_dy - current_dy) * armAimStrength;
+            hand.old_x -= force_x;
+            hand.old_y -= force_y;
+            elbow.old_x += force_x;
+            elbow.old_y += force_y;
+        }
+
+        function checkOutOfBounds() {
+            // --- REFACTORED: Applies to localTorsoPoints ---
+            if (!localTorsoPoints.length) return;
+            let avg_x = 0;
+            let avg_y = 0;
+            for (let p of localTorsoPoints) {
+                if (p) { 
+                    avg_x += p.x;
+                    avg_y += p.y;
+                }
+            }
+            avg_x /= localTorsoPoints.length;
+            avg_y /= localTorsoPoints.length;
+            const isOOB = avg_x < 0 || avg_x > world_width || avg_y < 0 || avg_y > world_height;
+            if (isOOB) {
+                if (oobTimer === null) {
+                    oobTimer = Date.now();
+                } else {
+                    if (Date.now() - oobTimer > oobDuration) {
+                        if (gameState.isRoundActive) triggerPlayerDeath(); // NEW: Check if round active
+                    }
+                }
+            } else {
+                oobTimer = null;
+            }
+        }
+
+        function updateWeapons() {
+            // --- REFACTORED: For localPlayer ---
+            if (!localPlayer.rightHand) return;
+            const now = Date.now();
+            const despawnTimeLimit = 20000;
+            const pickupCooldownTime = 500;
+            
+            localPlayer.nearestWeapon = null;
+            let min_dist = 50;
+            let closest_w = null;
+
+            if (localPlayer.heldWeapon) {
+                localPlayer.heldWeapon.p.x = localPlayer.rightHand.x;
+                localPlayer.heldWeapon.p.y = localPlayer.rightHand.y;
+                localPlayer.heldWeapon.p.old_x = localPlayer.rightHand.old_x;
+                localPlayer.heldWeapon.p.old_y = localPlayer.rightHand.old_y;
+                localPlayer.heldWeapon.despawnTimer = null; 
+                localPlayer.heldWeapon.pickupDelayTimer = null; 
+            }
+
+            for (let i = weapons.length - 1; i >= 0; i--) {
+                const w = weapons[i];
+                if (!w.isHeld && w.despawnTimer) {
+                    if (now - w.despawnTimer > despawnTimeLimit) {
+                        weapons.splice(i, 1);
+                        continue; 
+                    }
+                }
+                if (w.pickupDelayTimer && (now - w.pickupDelayTimer > pickupCooldownTime)) {
+                    w.pickupDelayTimer = null;
+                }
+                if (w.isHeld) { continue; }
+                w.bobbingAngle += bobbingSpeed;
+                const bobOffset = Math.sin(w.bobbingAngle) * bobbingAmount;
+                w.p.y += bobOffset; 
+                updatePoints([w.p]);  
+                w.p.y -= bobOffset; 
+                handleMapCollisions(w.p);
+                constrainToWorldBounds(w.p);
+                if (!localPlayer.heldWeapon && w.pickupDelayTimer === null) {
+                    const pickup_dist = dist(localPlayer.rightHand, w.p);
+                    if (pickup_dist < min_dist) {
+                        min_dist = pickup_dist;
+                        closest_w = w;
+                    }
+                }
+            }
+            localPlayer.nearestWeapon = closest_w;
+        }
+        
+        function updateMelee() {
+            // --- REFACTORED: For localPlayer ---
+            if (!localPlayer.heldWeapon || !localPlayer.rightElbow || !localPlayer.rightHand) return;
+            const weapon = localPlayer.heldWeapon;
+            const weaponDef = weaponTypes[weapon.type];
+            if (weaponDef.melee !== 'swing') { return; }
+            const hand = localPlayer.rightHand;
+            let angle = Math.atan2(mouse.y - hand.y, mouse.x - hand.x);
+            weapon.tip.old_x = weapon.tip.x;
+            weapon.tip.old_y = weapon.tip.y;
+            let isFlipped = false;
+            if (localPoints[0] && (mouse.x < localPoints[0].x)) {
+                isFlipped = true;
+            } else if (!localPoints[0] && (mouse.x < hand.x)) {
+                isFlipped = true;
+            }
+            const localY = isFlipped ? weaponDef.meleeLength : -weaponDef.meleeLength;
+            weapon.tip.x = hand.x - (localY * Math.sin(angle));
+            weapon.tip.y = hand.y + (localY * Math.cos(angle));
+            const tip_vx = weapon.tip.x - weapon.tip.old_x;
+            const tip_vy = weapon.tip.y - weapon.tip.old_y;
+            const tip_speed = Math.sqrt(tip_vx * tip_vx + tip_vy * tip_vy);
+            if (isPointInWall(weapon.tip.x, weapon.tip.y) && tip_speed > 10) {
+                if (localPlayer.canShoot) {
+                    playSound(weaponDef.sound, 0.5);
+                    localPlayer.canShoot = false;
+                    setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown);
+                }
+            }
+        }
+
+        function checkBulletBlocking() {
+            // --- REFACTORED: For localPlayer ---
+            if (!localPlayer.heldWeapon || !localPlayer.rightHand || !localPlayer.heldWeapon.tip) return;
+            const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+            if (weaponDef.melee !== 'swing') { return; }
+            const hand = localPlayer.rightHand;
+            const tip = localPlayer.heldWeapon.tip;
+            const weaponSound = weaponDef.sound;
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                let L2 = dist(hand, tip);
+                if (L2 < 0.001) continue;
+                L2 = L2 * L2;
+                const t = ((b.x - hand.x) * (tip.x - hand.x) + (b.y - hand.y) * (tip.y - hand.y)) / L2;
+                const t_clamped = Math.max(0, Math.min(1, t));
+                const closest_x = hand.x + t_clamped * (tip.x - hand.x);
+                const closest_y = hand.y + t_clamped * (tip.y - hand.y);
+                const dist_to_sword = dist(b, {x: closest_x, y: closest_y});
+                if (dist_to_sword < 10) {
+                    bullets.splice(i, 1);
+                    if (localPlayer.canShoot) {
+                        playSound(weaponSound, 0.5);
+                        localPlayer.canShoot = false;
+                        setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown);
+                    }
+                }
+            }
+        }
+        
+        // --- NEW: Check for bullet hits on a target ---
+        function checkBulletHit(bullet, targetPoints) {
+            for (const p of targetPoints) {
+                if (!p) continue;
+                const d = dist(bullet, p);
+                if (d < p.radius + 3) { // +3 for bullet radius
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function updateBullets() {
+            // --- REFACTORED: Now checks remotePoints for hits ---
+            checkBulletBlocking(); // Local player blocks own bullets
+
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                let vx = b.x - b.old_x;
+                let vy = b.y - b.old_y;
+                let travel_dist = Math.sqrt(vx * vx + vy * vy);
+
+                // --- Trail logic (same) ---
+                const trailSpawns = Math.max(1, Math.floor(travel_dist / 3)); 
+                for (let j = 1; j <= trailSpawns; j++) {
+                    const t = j / trailSpawns;
+                    bulletTrails.push({ x: lerp(b.old_x, b.x, t), y: lerp(b.old_y, b.y, t), life: 20, maxLife: 20 });
+                }
+
+                let hitWall = false;
+                // --- Wall collision (same) ---
+                const steps = Math.ceil(travel_dist / (grid_size / 2)); 
+                if (steps > 1) {
+                    for (let j = 1; j <= steps; j++) {
+                        const t = j / steps;
+                        const check_x = lerp(b.x, b.x + vx, t);
+                        const check_y = lerp(b.y, b.y + vy, t);
+                        if (isPointInWall(check_x, check_y)) {
+                            b.x = check_x; 
+                            b.y = check_y;
+                            b.life = 0; 
+                            hitWall = true;
+                            break;
+                        }
+                    }
+                }
+                if (b.life <= 0) { bullets.splice(i, 1); continue; }
+                if (!hitWall) {
+                    b.old_x = b.x;
+                    b.old_y = b.y;
+                    b.x += vx;
+                    b.y += vy;
+                }
+                if (isPointInWall(b.x, b.y)) { b.life = 0; }
+
+                // --- NEW: Check hit against remote player ---
+                if (gameMode !== 'single' && b.life > 0) {
+                    if (checkBulletHit(b, remotePoints)) {
+                        b.life = 0;
+                        sendData({ type: 'hit', damage: b.damage });
+                    }
+                }
+
+                b.life--;
+                if (b.life <= 0) {
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+
+        function updateBulletTrails() {
+            // ... (same as before) ...
+            for (let i = bulletTrails.length - 1; i >= 0; i--) {
+                let t = bulletTrails[i];
+                t.life--;
+                if (t.life <= 0) {
+                    bulletTrails.splice(i, 1);
+                }
+            }
+        }
+
+        // --- Drawing Functions ---
+        function drawMap() {
+            // ... (same as before) ...
+            ctx.fillStyle = '#FFF';
+            for (let y = 0; y < grid_rows; y++) {
+                for (let x = 0; x < grid_cols; x++) {
+                    if (map_data[y] && map_data[y][x] === 1) { 
+                        ctx.fillRect(x * grid_size, y * grid_size, grid_size, grid_size);
+                    }
+                }
+            }
+        }
+
+        function drawWeapons() {
+            // --- REFACTORED: For localPlayer.nearestWeapon ---
+            for (let w of weapons) {
+                if (w.isHeld) continue; 
+                const weaponDef = weaponTypes[w.type]; 
+                if (!weaponDef || !weaponDef.image.complete || weaponDef.image.width === 0) continue; 
+                const bobOffset = Math.sin(w.bobbingAngle) * bobbingAmount;
+                const rotation = Math.sin(w.bobbingAngle * 0.5) * 0.1; 
+                ctx.save();
+                ctx.translate(w.p.x, w.p.y + bobOffset);
+                ctx.rotate(rotation);
+                if (weaponDef.melee === 'swing') {
+                    ctx.drawImage(weaponDef.image, -weaponDef.imgWidth/2, -weaponDef.imgHeight, weaponDef.imgWidth, weaponDef.imgHeight); 
+                } else if (weaponDef.melee === 'stab') {
+                    ctx.drawImage(weaponDef.image, -weaponDef.imgWidth/2, -weaponDef.imgHeight, weaponDef.imgWidth, weaponDef.imgHeight); 
+                } else {
+                    ctx.drawImage(weaponDef.image, -weaponDef.imgWidth/2, -weaponDef.imgHeight/2, weaponDef.imgWidth, weaponDef.imgHeight); 
+                }
+                ctx.restore();
+                
+                if (w === localPlayer.nearestWeapon) {
+                    ctx.fillStyle = 'white';
+                    ctx.font = '16px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('[F]', w.p.x, w.p.y + bobOffset - 20);
+                    ctx.textAlign = 'left';
+                }
+            }
+        }
+
+        function drawBulletTrails() {
+            // ... (same as before) ...
+            for (let t of bulletTrails) {
+                const lifePercent = t.life / t.maxLife;
+                const size = 6 * lifePercent; 
+                const opacity = 0.8 * lifePercent; 
+                const g = 100 + (155 * lifePercent); 
+                ctx.fillStyle = `rgba(255, ${Math.floor(g)}, 0, ${opacity})`;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawBullets() {
+            // ... (same as before) ...
+            ctx.fillStyle = 'yellow';
+            for (let b of bullets) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function drawHealthBars() {
+            // --- REFACTORED: For P1 (local) and P2 (remote) ---
+            const barWidth = 200;
+            const barHeight = 20;
+            const barMargin = 10;
+
+            // P1 (Local)
+            const p1HealthPercent = playerHealth.p1 / playerHealth.maxHealth;
+            ctx.fillStyle = '#555'; 
+            ctx.fillRect(barMargin, barMargin, barWidth, barHeight);
+            ctx.fillStyle = '#FF0000'; // Red
+            ctx.fillRect(barMargin, barMargin, barWidth * p1HealthPercent, barHeight);
+            ctx.strokeStyle = '#FFF';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barMargin, barMargin, barWidth, barHeight);
+            ctx.fillStyle = 'white';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(localPlayer.username, barMargin + 5, barMargin + barHeight + 15);
+
+
+            // P2 (Remote)
+            if (gameMode !== 'single') {
+                const p2HealthPercent = playerHealth.p2 / playerHealth.maxHealth;
+                ctx.fillStyle = '#555';
+                ctx.fillRect(world_width - barWidth - barMargin, barMargin, barWidth, barHeight);
+                ctx.fillStyle = '#0000FF'; // Blue
+                ctx.fillRect(world_width - barWidth - barMargin, barMargin, barWidth * p2HealthPercent, barHeight);
+                ctx.strokeStyle = '#FFF';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(world_width - barWidth - barMargin, barMargin, barWidth, barHeight);
+                ctx.fillStyle = 'white';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(remotePlayer.username, world_width - barMargin - 5, barMargin + barHeight + 15);
+            }
+        }
+
+        // --- NEW: Generic Ragdoll Drawer ---
+        function drawRagdoll(points, sticks, playerObj, health, color, isLocal) {
+            if (points.length === 0) return;
+
+            // Draw sticks
+            ctx.strokeStyle = color; 
+            ctx.lineWidth = 5; 
+            for (let s of sticks) {
+                if (s.visible) {
+                    if (isDebugMode) {
+                        ctx.beginPath();
+                        ctx.moveTo(s.p1.x, s.p1.y);
+                        ctx.lineTo(s.p2.x, s.p2.y);
+                        ctx.stroke();
+                    } else if (s.type === 'limb') {
+                        ctx.beginPath();
+                        if (s.p1 && s.p2) { 
+                            ctx.moveTo(s.p1.x, s.p1.y);
+                            ctx.lineTo(s.p2.x, s.p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // Draw head
+            if (!isDebugMode && points.length > 2) {
+                const shoulder_point = points[0];
+                const h_top = points[2];
+                if (shoulder_point && h_top) {
+                    const head_center_x = (shoulder_point.x + h_top.x) / 2;
+                    const head_center_y = (shoulder_point.y + h_top.y) / 2;
+                    const head_dist = dist(h_top, {x: head_center_x, y: head_center_y});
+                    const head_radius = (head_dist > 0.01) ? head_dist * 1.5 * 0.7 : 10; 
+                    ctx.fillStyle = health <= 0 ? '#808080' : color;
+                    ctx.beginPath();
+                    ctx.arc(head_center_x, head_center_y, head_radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Draw weapon
+            if (playerObj.heldWeapon) {
+                const weaponDef = weaponTypes[playerObj.heldWeapon.type];
+                if (weaponDef && weaponDef.image.complete && weaponDef.image.width > 0) {
+                    
+                    let angle, isFlipped, hand;
+
+                    if (isLocal) {
+                        hand = playerObj.rightHand;
+                        const elbow = playerObj.rightElbow;
+                        
+                        if (weaponDef.melee === 'swing' || !weaponDef.melee) {
+                            angle = Math.atan2(mouse.y - hand.y, mouse.x - hand.x);
+                        } else {
+                            angle = Math.atan2(hand.y - elbow.y, hand.x - elbow.x);
+                        }
+                        isFlipped = false;
+                        if (!weaponDef.melee || weaponDef.melee === 'swing') {
+                            if (mouse.x < (points[0] ? points[0].x : hand.x)) {
+                                isFlipped = true;
+                            }
+                        }
+                    } else {
+                        // Use synced data for remote player
+                        angle = playerObj.heldWeapon.angle;
+                        isFlipped = playerObj.heldWeapon.isFlipped;
+                        hand = playerObj.heldWeapon.hand;
+                        if (!hand) {
+                            // Failsafe: find the hand point (index 8)
+                            hand = points[8];
+                            if (!hand) return; // Still not ready
+                        }
+                    }
+                    
+                    ctx.save();
+                    ctx.translate(hand.x, hand.y);
+                    if (weaponDef.melee === 'stab') {
+                        ctx.rotate(angle + Math.PI / 2);
+                    } else {
+                        ctx.rotate(angle);
+                    }
+                    if (isFlipped) {
+                        ctx.scale(1, -1);
+                    }
+                    
+                    let barrelOffsetX = 0;
+                    if (weaponDef.melee === 'swing') {
+                        ctx.drawImage(weaponDef.image, -5, -weaponDef.imgHeight, weaponDef.imgWidth, weaponDef.imgHeight); 
+                    } else if (weaponDef.melee === 'stab') {
+                        ctx.drawImage(weaponDef.image, -weaponDef.imgWidth/2, -weaponDef.imgHeight, weaponDef.imgWidth, weaponDef.imgHeight); 
+                    } else {
+                        ctx.drawImage(weaponDef.image, -5, -weaponDef.imgHeight/2, weaponDef.imgWidth, weaponDef.imgHeight); 
+                        barrelOffsetX = weaponDef.imgWidth - 5;
+                    }
+                    
+                    // Draw laser (only for local player, or if synced)
+                    if (weaponDef.laser) {
+                        let laserEndPoint;
+                        if (isLocal) {
+                            const worldLaserStartX = hand.x + Math.cos(angle) * barrelOffsetX;
+                            const worldLaserStartY = hand.y + Math.sin(angle) * barrelOffsetX;
+                            const worldLaserNormX = Math.cos(angle);
+                            const worldLaserNormY = Math.sin(angle);
+                            laserEndPoint = raycast(worldLaserStartX, worldLaserStartY, worldLaserNormX, worldLaserNormY);
+                        } else {
+                            // Remote player's laser end point (if we synced it)
+                            // For now, let's just draw the local one
+                            laserEndPoint = null;
+                        }
+
+                        if (isLocal && laserEndPoint) {
+                            // We need to draw this from the save() context
+                            const localLaserEndX = (laserEndPoint.x - hand.x) * Math.cos(-angle) - (laserEndPoint.y - hand.y) * Math.sin(-angle);
+                            const localLaserEndY = (laserEndPoint.x - hand.x) * Math.sin(-angle) + (laserEndPoint.y - hand.y) * Math.cos(-angle);
+
+                            ctx.beginPath();
+                            ctx.moveTo(barrelOffsetX, 0);
+                            ctx.lineTo(localLaserEndX, isFlipped ? -localLaserEndY : localLaserEndY);
+                            ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        }
+                    }
+                    ctx.restore();
+                }
+            }
+
+            // Draw ammo
+            if (playerObj.headTop) {
+                let ammoText;
+                if (isLocal) {
+                    if (playerObj.heldWeapon && !weaponTypes[playerObj.heldWeapon.type].melee) {
+                        ammoText = `${playerObj.heldWeapon.ammo} / ${playerObj.heldWeapon.maxAmmo}`;
+                    }
+                } else {
+                    ammoText = playerObj.ammoText; // Use synced text
+                }
+
+                if (ammoText) {
+                    if (isLocal && playerObj.heldWeapon.ammo <= 0) {
+                        ctx.fillStyle = 'red'; 
+                    } else {
+                        ctx.fillStyle = 'white';
+                    }
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(ammoText, playerObj.headTop.x, playerObj.headTop.y - 20);
+                    ctx.textAlign = 'left';
+                }
+            }
+
+            // Draw debug points
+            if (isDebugMode) {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.3)'; 
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+                ctx.lineWidth = 1;
+                for (let p of points) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+        }
+
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (hasBorders) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2; 
+                ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            }
+
+            drawMap();
+            drawWeapons();
+            drawBulletTrails(); 
+            drawBullets();
+
+            // --- REFACTORED: Draw both ragdolls ---
+            drawRagdoll(localPoints, localSticks, localPlayer, playerHealth.p1, 'red', true);
+            if (gameMode !== 'single') {
+                drawRagdoll(remotePoints, remoteSticks, remotePlayer, playerHealth.p2, 'blue', false);
+            }
+
+            // Draw particles (same)
+            for (let p of particles) {
+                if (p.isExplosion) {
+                    ctx.fillStyle = `rgba(255, 100, 0, ${p.life / 60})`;
+                } else {
+                    ctx.fillStyle = `rgba(200, 200, 200, ${p.life / 100})`;
+                }
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // OOB Timer (same, but for local player)
+            if (oobTimer !== null) {
+                const timeLeft = (oobDuration - (Date.now() - oobTimer)) / 1000;
+                const timerText = timeLeft.toFixed(1);
+                let textX = 0, textY = 0;
+                if (localPlayer.headTop) {
+                    textX = localPlayer.headTop.x;
+                    textY = localPlayer.headTop.y - 40; 
+                }
+                const padding = 30; 
+                textX = Math.max(padding, Math.min(world_width - padding, textX));
+                textY = Math.max(padding, Math.min(world_height - padding, textY));
+                ctx.fillStyle = 'red';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(timerText, textX, textY);
+                ctx.textAlign = 'left';
+            }
+            
+            // Debug text (same)
+            if (isDebugMode) {
+                let avg_vx = 0, avg_vy = 0;
+                if (localPoints.length > 0) {
+                    for (let p of localPoints) {
+                        avg_vx += (p.x - p.old_x);
+                        avg_vy += (p.y - p.old_y);
+                    }
+                    avg_vx /= localPoints.length;
+                    avg_vy /= localPoints.length;
+                }
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.fillText(`Avg Force X: ${avg_vx.toFixed(2)}`, 10, 60);
+                ctx.fillText(`Avg Force Y: ${avg_vy.toFixed(2)}`, 10, 80);
+            }
+            
+            drawHealthBars();
+
+            // Draw slowmo winner screen
+            if (gameState.slowmoActive && gameState.roundWinner) {
+                const winnerColor = gameState.roundWinner === localPlayer.username ? '#FF0000' : '#0000FF';
+                
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = winnerColor;
+                ctx.font = 'bold 80px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${gameState.roundWinner} WINS!`, canvas.width / 2, canvas.height / 2);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = '32px Arial';
+                ctx.fillText(`${gameState.p1Score} - ${gameState.p2Score}`, canvas.width / 2, canvas.height / 2 + 60);
+            }
+            
+            // Score display
+            ctx.fillStyle = 'white';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${localPlayer.username}: ${gameState.p1Score} | ${remotePlayer.username}: ${gameState.p2Score}`, canvas.width / 2, 50);
+            ctx.textAlign = 'left';
+        }
+
+        function resizeCanvas() {
+            // ... (same as before) ...
+            const ratio = world_width / world_height;
+            let new_width = window.innerWidth;
+            let new_height = window.innerHeight;
+            let new_ratio = new_width / new_height;
+            if (new_ratio > ratio) {
+                new_width = new_height * ratio;
+            } else {
+                new_height = new_width / ratio;
+            }
+            canvas.width = world_width;
+            canvas.height = world_height;
+            canvas.style.width = new_width + 'px';
+            canvas.style.height = new_height + 'px';
+            draw(); 
+        }
+
+        // --- NEW: Send local player data ---
+        function sendLocalPlayerData() {
+            if (gameMode === 'single' || !dataChannel || dataChannel.readyState !== 'open') {
+                return;
+            }
+
+            // Send minimal point data
+            const simplePoints = localPoints.map(p => ({
+                x: p.x,
+                y: p.y,
+                radius: p.radius
+            }));
+
+            // Send minimal weapon data
+            let simpleWeapon = null;
+            if (localPlayer.heldWeapon && localPlayer.rightHand) {
+                const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+                let angle, isFlipped;
+
+                if (weaponDef.melee === 'swing' || !weaponDef.melee) {
+                    angle = Math.atan2(mouse.y - localPlayer.rightHand.y, mouse.x - localPlayer.rightHand.x);
+                } else {
+                    angle = Math.atan2(localPlayer.rightHand.y - localPlayer.rightElbow.y, localPlayer.rightHand.x - localPlayer.rightElbow.x);
+                }
+                isFlipped = false;
+                if (!weaponDef.melee || weaponDef.melee === 'swing') {
+                    if (mouse.x < (localPoints[0] ? localPoints[0].x : localPlayer.rightHand.x)) {
+                        isFlipped = true;
+                    }
+                }
+                
+                simpleWeapon = {
+                    type: localPlayer.heldWeapon.type,
+                    tip: localPlayer.heldWeapon.tip, // For melee
+                    laser: weaponDef.laser,
+                    isFlipped: isFlipped,
+                    angle: angle,
+                    hand: { x: localPlayer.rightHand.x, y: localPlayer.rightHand.y },
+                    melee: weaponDef.melee
+                };
+            }
+
+            // Send ammo text
+            let ammoText = null;
+            if (localPlayer.heldWeapon && !weaponTypes[localPlayer.heldWeapon.type].melee) {
+                ammoText = `${localPlayer.heldWeapon.ammo} / ${localPlayer.heldWeapon.maxAmmo}`;
+            }
+
+            const data = {
+                type: 'ragdoll',
+                points: simplePoints,
+                weapon: simpleWeapon,
+                headTop: localPlayer.headTop ? { x: localPlayer.headTop.x, y: localPlayer.headTop.y } : null,
+                ammoText: ammoText
+            };
+            
+            sendData(data);
+        }
+
+        function animate() {
+            let deltaTime = 1;
+            
+            if (gameState.slowmoActive) {
+                gameState.slowmoTime += 16;
+                deltaTime = gameState.slowmoSpeed;
+                
+                if (gameState.slowmoTime >= gameState.slowmoDuration) {
+                    // Slowmo over, reset
+                    gameState.slowmoActive = false;
+                    gameState.isRoundActive = true;
+                    gameState.roundWinner = null;
+                    
+                    // NEW: Host handles map change and weapon spawn
+                    if (gameMode === 'host' || gameMode === 'single') {
+                        currentMapIndex = Math.floor(Math.random() * mapsData.maps.length);
+                        loadMap(currentMapIndex);
+                        // Send map change to client
+                        if (gameMode === 'host') {
+                            sendData({ type: 'map_change', index: currentMapIndex });
+                            // Host clears and spawns new weapons
+                            weapons = [];
+                            spawnWeapon(); 
+                            // TODO: Send weapon data
+                        }
+                    }
+                    
+                    resetPlayer();
+                }
+            }
+            
+            // Only run physics if not in menu
+            if (gameMode !== 'menu') {
+                if (gameState.isRoundActive) {
+                    applyPlayerInput();
+                    applyUprightForce();
+                    applyAimingForce(); 
+                }
+                
+                updatePoints(localPoints); 
+                updateSticks(localSticks);
+                updateWeapons(); 
+                
+                updateMelee(); 
+                updateBullets(); // This now handles hit detection
+                updateBulletTrails(); 
+                
+                for (let p of localPoints) {
+                    handleMapCollisions(p);
+                    constrainToWorldBounds(p); 
+                }
+
+                handleCollisions(); 
+                updateParticles(); 
+
+                if(gameState.isRoundActive) {
+                    checkOutOfBounds(); 
+                }
+
+                // NEW: Send data to peer
+                sendLocalPlayerData();
+
+                draw();
+            }
+            
+            requestAnimationFrame(animate);
+        }
+
+        // --- NEW: WebRTC and UI Logic ---
+
+        // --- This function securely fetches credentials from our Vercel API ---
+        async function fetchTurnCredentials() {
+            console.log("Fetching TURN credentials from our API...");
+            try {
+                // This '/api/get-turn-credentials' URL works *because* we are on Vercel
+                const response = await fetch('/api/get-turn-credentials');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    // --- FIX 2: Corrected template literal for error string ---
+                    throw new Error(`Our API failed: ${errorText}`);
+                }
+                const temporaryIceServers = await response.json();
+                // Add the regular Google STUN server as a fallback
+                return {
+                    iceServers: [
+                        ...temporaryIceServers, // This is the secure array from Metered
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ],
+                    //i cast, TURN SERVER ONLY.. since p2p is firewall blocked :(
+                    iceTransportPolicy: 'relay'
+                };
+            } catch (error) {
+                console.error("CRITICAL: Failed to fetch TURN credentials:", error);
+                // Fallback to just Google STUN if our server fails
+                return {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ],
+                    //i cast, the same TURN SERVER ONLY.. since p2p is firewall is still blocked :(
+                    iceTransportPolicy: 'relay'
+                };
+            }
+        }
+        
+        function sendData(data) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify(data));
+            }
+        }
+
+        function onDataMessage(event) {
+            const data = JSON.parse(event.data);
+            
+            switch(data.type) {
+                case 'ragdoll':
+                    updateRemoteRagdoll(data);
+                    break;
+                case 'hit':
+                    if (playerHealth.p1 > 0) {
+                        playerHealth.p1 -= data.damage;
+                        if (playerHealth.p1 <= 0) {
+                            triggerPlayerDeath(); // I was hit and I died
+                        }
+                    }
+                    break;
+                case 'i_died':
+                    // Opponent died, I win!
+                    if (gameState.isRoundActive) {
+                        gameState.p1Score++;
+                        startSlowmoAndReset(localPlayer.username);
+                        // Send my new score back
+                        sendData({ type: 'score_update', p1: gameState.p1Score, p2: gameState.p2Score });
+                    }
+                    break;
+                case 'score_update':
+                    // A-sync score update (I am p2 from their perspective)
+                    gameState.p1Score = data.p2;
+                    gameState.p2Score = data.p1;
+                    break;
+                case 'map_change':
+                    loadMap(data.index);
+                    break;
+                case 'username':
+                    remotePlayer.username = data.name;
+                    remoteUsername = data.name; // Update for score
+                    break;
+                case 'weapon_pickup':
+                    // Simple: just create a "held" weapon for the remote
+                    remotePlayer.heldWeapon = { type: data.weaponType };
+                    break;
+                case 'weapon_drop':
+                    remotePlayer.heldWeapon = null;
+                    break;
+            }
+        }
+
+        async function initializePeerConnection() {
+            if (!iceServersConfig) {
+                connectionStatus.textContent = "Fetching TURN credentials...";
+                iceServersConfig = await fetchTurnCredentials();
+                console.log("Got ICE config:", iceServersConfig);
+            }
+            
+            peerConnection = new RTCPeerConnection(iceServersConfig);
+
+            peerConnection.onicecandidate = (event) => {
+                // We are using the "wait for complete" method, so this is just for logging
+                if (event.candidate) {
+                    console.log("Got ICE candidate:", event.candidate.candidate);
+                }
+            };
+            
+            peerConnection.onicegatheringstatechange = () => {
+                console.log("ICE gathering state:", peerConnection.iceGatheringState);
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                console.log("P2P Connection State:", peerConnection.connectionState);
+                connectionStatus.textContent = `Connection: ${peerConnection.connectionState}`;
+                if (peerConnection.connectionState === 'connected') {
+                    connectionModal.classList.add('hidden');
+                    isConnecting = false;
+                    // Send my username
+                    sendData({ type: 'username', name: localPlayer.username });
+                }
+                if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
+                    // Handle reconnect or error
+                    if (!isConnecting) {
+                        alert("Connection Failed!");
+                        location.reload();
+                    }
+                }
+            };
+
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannel();
+            };
+        }
+        
+        function setupDataChannel() {
+            dataChannel.onmessage = onDataMessage;
+            dataChannel.onopen = () => {
+                console.log("Data Channel OPEN");
+                connectionStatus.textContent = `Connection: connected`;
+                connectionModal.classList.add('hidden');
+                isConnecting = false;
+                // Send my username
+                sendData({ type: 'username', name: localPlayer.username });
+            };
+            dataChannel.onclose = () => {
+                console.log("Data Channel CLOSED");
+                connectionStatus.textContent = `Connection: closed`;
+            };
+        }
+
+        // Helper promise to wait for ICE gathering
+        function waitForIceGathering() {
+            return new Promise(resolve => {
+                if (peerConnection.iceGatheringState === 'complete') {
+                    resolve();
+                } else {
+                    peerConnection.onicegatheringstatechange = () => {
+                        if (peerConnection.iceGatheringState === 'complete') {
+                            resolve();
+                        }
+                    };
+                }
+            });
+        }
+
+        async function startHostGame() {
+            gameMode = 'host';
+            isConnecting = true;
+            connectionModal.classList.remove('hidden');
+            modalTitle.textContent = "Host: Share Offer";
+            modalInstructions.textContent = "Copy this offer data and send it to the other player:";
+            modalTextarea.readOnly = true;
+            modalInputGroup.classList.remove('hidden');
+            modalInput.value = "";
+            modalInstructions.textContent = "2. Paste their ANWSER data below and click Submit.";
+            
+            await initializePeerConnection();
+            
+            dataChannel = peerConnection.createDataChannel('gameData');
+            setupDataChannel();
+            
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            connectionStatus.textContent = "Gathering ICE candidates...";
+            await waitForIceGathering();
+            console.log("ICE Gathering Complete.");
+            
+            const offerWithCandidates = peerConnection.localDescription;
+            modalTextarea.value = JSON.stringify(offerWithCandidates);
+            modalInstructions.textContent = "1. Copy this data and send it to the joiner.";
+            connectionStatus.textContent = "Waiting for answer...";
+
+            modalSubmit.onclick = async () => {
+                try {
+                    const answer = JSON.parse(modalInput.value);
+                    if (!answer) throw new Error("Invalid answer data");
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+                    console.log("Remote description (answer) set!");
+                    connectionStatus.textContent = "Connecting...";
+                } catch (err) {
+                    console.error("Failed to set answer:", err);
+                    alert("Invalid answer data pasted!");
+                }
+            };
+        }
+
+        async function startJoinGame() {
+            gameMode = 'client';
+            isConnecting = true;
+            connectionModal.classList.remove('hidden');
+            modalTitle.textContent = "Join: Paste Offer";
+            modalInstructions.textContent = "1. Paste the host's OFFER data below and click Submit.";
+            modalTextarea.readOnly = true;
+            modalTextarea.value = "Waiting for you to paste offer...";
+            modalInputGroup.classList.remove('hidden');
+            modalInput.value = "";
+
+            await initializePeerConnection();
+            
+            modalSubmit.onclick = async () => {
+                try {
+                    const offer = JSON.parse(modalInput.value);
+                    if (!offer) throw new Error("Invalid offer data");
+                    
+                    connectionStatus.textContent = "Setting offer...";
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                    console.log("Remote description (offer) set!");
+
+                    connectionStatus.textContent = "Creating answer...";
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    connectionStatus.textContent = "Gathering ICE candidates...";
+                    await waitForIceGathering();
+                    console.log("ICE Gathering Complete.");
+                    
+                    const answerWithCandidates = peerConnection.localDescription;
+                    modalTextarea.value = JSON.stringify(answerWithCandidates);
+                    modalInstructions.textContent = "2. Copy this ANSWER data and send it back to the host.";
+                    modalInputGroup.classList.add('hidden'); // Hide input, we're done with it
+                    connectionStatus.textContent = "Waiting for host to connect...";
+
+                } catch (err) {
+                    console.error("Failed to process offer:", err);
+                    alert("Invalid offer data pasted!");
+                }
+            };
+        }
+
+        function startGame(mode) {
+            localUsername = usernameInput.value || 'Player';
+            localPlayer.username = localUsername;
+
+            startScreen.classList.add('hidden');
+            canvas.style.display = 'block';
+            
+            gameMode = mode;
+            
+            if (mode === 'single') {
+                playerHealth.p2 = 0; // No opponent
+                remotePlayer.username = "---";
+            } else if (mode === 'host') {
+                startHostGame();
+            } else if (mode === 'client') {
+                startJoinGame();
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            loadMap(0); // Load default map first
+            resetPlayer();
+            resizeCanvas(); 
+            if (mode === 'host' || gameMode === 'single') {
+                spawnWeapon(); 
+                setInterval(spawnWeapon, 20000); 
+            }
+            animate(); 
+        }
+
+        hostButton.addEventListener('click', () => startGame('host'));
+        joinButton.addEventListener('click', () => startGame('client'));
+        singlePlayerButton.addEventListener('click', () => startGame('single'));
+
+        // Key Listeners
+        window.addEventListener('keydown', (event) => {
+            if (gameMode === 'menu') return;
+            if (event.code === 'KeyA') keys.a = true;
+            if (event.code === 'KeyD') keys.d = true;
+            if (event.code === 'KeyE') keys.e = true; 
+            if (event.code === 'KeyQ') keys.q = true; 
+            if (event.code === 'KeyF') keys.f = true; 
+            if (event.code === 'KeyI') isDebugMode = !isDebugMode; 
+            if (event.code === 'KeyP') {
+                if (gameState.isRoundActive) {
+                    triggerPlayerDeath();
+                }
+            }
+            if (event.code === 'Space') {
+                if (canJump) {
+                    applyJump();
+                }
+                event.preventDefault(); 
+            }
+        });
+        window.addEventListener('keyup', (event) => {
+            if (gameMode === 'menu') return;
+            if (event.code === 'KeyA') keys.a = false;
+            if (event.code === 'KeyD') keys.d = false;
+            if (event.code === 'KeyQ') keys.q = false;
+            if (event.code === 'KeyF') keys.f = false; 
+            if (event.code === 'KeyE') {
+                keys.e = false;
+                if (localPlayer.isSpinningUp) {
+                    stopMinigunSpin();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
