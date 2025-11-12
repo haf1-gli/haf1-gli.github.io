@@ -217,7 +217,7 @@
             'shotgun': { image: shotgun_img, sound: shotgun_sound, ammo: 5, maxAmmo: 5, shootCooldown: 1000, recoil: 20, bulletCount: 6, spread: 0.5, damage: 10, imgWidth: 50, imgHeight: 15 },
             'minigun': { image: minigun_img, sound: minigun_loop_sound, ammo: 100, maxAmmo: 100, shootCooldown: 50, spinUpTime: 2000, recoil: 2, bulletCount: 1, spread: 0.3, damage: 5, imgWidth: 60, imgHeight: 20 },
             'sniper': { image: sniper_img, sound: sniper_sound, ammo: 3, maxAmmo: 3, shootCooldown: 1500, recoil: 30, bulletCount: 1, spread: 0, damage: 75, laser: true, imgWidth: 70, imgHeight: 20 },
-            'katana': { image: katana_img, sound: katana_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 500, recoil: 0, bulletCount: 0, spread: 0, damage: 40, imgWidth: 15 * 0.8, imgHeight: 60 * 0.8, melee: 'swing', meleeLength: 50 * 0.8 },
+            'katana': { image: katana_img, sound: katana_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 500, recoil: 0, bulletCount: 0, spread: 0, damage: 40, imgWidth: 15 * 0.8, imgHeight: 60 * 0.8, melee: 'swing', meleeLength: 50 * 0.8,speedDamageMult: 0.5 },
             'knife': { image: knife_img, sound: null, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 300, recoil: 0, bulletCount: 0, spread: 0, damage: 25, imgWidth: 10, imgHeight: 30, melee: 'stab' }
         };
 
@@ -296,6 +296,10 @@
         let hasBorders = true;
         let oobTimer = null;
         const oobDuration = 1000;
+
+
+        let remoteBullets = [];  // NEW: Ghost bullets from opponent
+
 
         function dist(p1, p2) {
             // ... (same as before) ...
@@ -740,13 +744,43 @@
                 if (p.life <= 0) { particles.splice(i, 1); }
             }
         }
+        let weaponIdCounter = 0;
+
         function spawnWeapon() {
             const lootTable = Object.keys(weaponTypes);
             const randomType = lootTable[Math.floor(Math.random() * lootTable.length)];
             const weaponDef = weaponTypes[randomType];
             const x = Math.random() * (world_width - 100) + 50; 
-            const y = -20; 
-            weapons.push({ type: randomType, p: { x: x, y: y, old_x: x, old_y: y, radius: 10 }, isHeld: false, ammo: weaponDef.ammo, maxAmmo: weaponDef.maxAmmo, despawnTimer: null, pickupDelayTimer: null, bobbingAngle: Math.random() * Math.PI * 2, tip: { x: x, y: y - (weaponDef.meleeLength || 0), old_x: x, old_y: y - (weaponDef.meleeLength || 0) } });
+            const y = -20;
+            
+            // NEW: Add weapon ID
+            const weaponId = weaponIdCounter++;
+            
+            weapons.push({ 
+                id: weaponId,
+                type: randomType, 
+                p: { x: x, y: y, old_x: x, old_y: y, radius: 10 }, 
+                isHeld: false, 
+                ammo: weaponDef.ammo, 
+                maxAmmo: weaponDef.maxAmmo, 
+                despawnTimer: null, 
+                pickupDelayTimer: null, 
+                bobbingAngle: Math.random() * Math.PI * 2, 
+                tip: { x: x, y: y - (weaponDef.meleeLength || 0), old_x: x, old_y: y - (weaponDef.meleeLength || 0) } 
+            });
+            
+            // NEW: Send weapon creation to other player (host only)
+            if (gameMode === 'host' || gameMode === 'single') {
+                if (gameMode === 'host') {
+                    sendData({ 
+                        type: 'weapon_spawned', 
+                        id: weaponId, 
+                        weaponType: randomType, 
+                        x: x, 
+                        y: y 
+                    });
+                }
+            }
         }
         function isPointInWall(x, y) {
             let grid_x = Math.floor(x / grid_size);
@@ -784,12 +818,11 @@
         }
 
         function tryPunchOrStab() {
-            // --- REFACTORED: Applies to localPlayer ---
             if (!localPlayer.canPunch || !localPlayer.rightHand) return;
 
             let punchForce = 30;
             let cooldown = localPlayer.punchCooldown;
-            let damage = 5;
+            let damage = 5;  // NEW: Punch base damage
             
             if (localPlayer.heldWeapon) {
                 const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
@@ -797,9 +830,8 @@
                     if (localPlayer.canShoot) {
                         punchForce = 40;
                         cooldown = weaponDef.shootCooldown;
-                        damage = weaponDef.damage;
-                        localPlayer.canShoot = false;
-                        setTimeout(() => localPlayer.canShoot = true, cooldown);
+                        damage = weaponDef.damage * 3;  // NEW: Knife does 3x damage when stabbing
+                        // ... rest of stab code
                     } else {
                         return;
                     }
@@ -808,20 +840,29 @@
                 }
             } else {
                 localPlayer.canPunch = false;
-                setTimeout(() => {
-                    localPlayer.canPunch = true;
-                }, cooldown);
+                setTimeout(() => { localPlayer.canPunch = true; }, cooldown);
             }
 
             const hand = localPlayer.rightHand;
             let dx = mouse.x - hand.x;
             let dy = mouse.y - hand.y;
             const dist_to_mouse = Math.sqrt(dx * dx + dy * dy);
-            if (dist_to_mouse < 1) return; 
+            if (dist_to_mouse < 1) return;
+            
             let norm_x = dx / dist_to_mouse;
             let norm_y = dy / dist_to_mouse;
             hand.old_x -= norm_x * punchForce;
             hand.old_y -= norm_y * punchForce;
+            
+            // NEW: Check punch hit on opponent
+            if (gameMode !== 'single') {
+                const punchReach = 50;
+                const punchTip = { x: hand.x + norm_x * punchReach, y: hand.y + norm_y * punchReach };
+                const damageDealt = checkMeleeHit(hand, punchTip, remotePoints, damage, 0);
+                if (damageDealt > 0) {
+                    sendData({ type: 'melee_hit', damage: damageDealt });
+                }
+            }
         }
 
         function applyPlayerInput() {
@@ -839,9 +880,16 @@
 
             if (keys.q && localPlayer.heldWeapon) {
                 stopMinigunSpin();
-                // NEW: Send weapon drop event
+                    
+                // NEW: Send weapon drop with ID and position
                 if (gameMode !== 'single') {
-                    sendData({ type: 'weapon_drop' });
+                    sendData({ 
+                        type: 'weapon_dropped', 
+                        weaponId: localPlayer.heldWeapon.id,
+                        weaponType: localPlayer.heldWeapon.type,
+                        x: localPlayer.heldWeapon.p.x,
+                        y: localPlayer.heldWeapon.p.y
+                    });
                 }
 
                 localPlayer.heldWeapon.isHeld = false;
@@ -860,11 +908,15 @@
                 localPlayer.heldWeapon = localPlayer.nearestWeapon;
                 localPlayer.heldWeapon.isHeld = true;
                 
-                // NEW: Send weapon pickup event
+                // NEW: Send weapon pickup with ID
                 if (gameMode !== 'single') {
-                    sendData({ type: 'weapon_pickup', weaponType: localPlayer.heldWeapon.type });
+                    sendData({ 
+                        type: 'weapon_pickup', 
+                        weaponId: localPlayer.heldWeapon.id,
+                        weaponType: localPlayer.heldWeapon.type 
+                    });
                 }
-                
+
                 localPlayer.heldWeapon.p.old_x = localPlayer.rightHand.old_x;
                 localPlayer.heldWeapon.p.old_y = localPlayer.rightHand.old_y;
                 localPlayer.heldWeapon.p.x = localPlayer.rightHand.x;
@@ -919,6 +971,19 @@
                                 const norm_x = base_norm_x * Math.cos(spreadAngle) - base_norm_y * Math.sin(spreadAngle);
                                 const norm_y = base_norm_x * Math.sin(spreadAngle) + base_norm_y * Math.cos(spreadAngle);
                                 bullets.push({ x: hand.x + norm_x * 20, y: hand.y + norm_y * 20, old_x: hand.x - norm_x * 20, old_y: hand.y - norm_y * 20, life: 100, damage: weaponDef.damage });
+
+                                // Sync bullet to opponent
+                                if (gameMode !== 'single') {
+                                    sendData({
+                                        type: 'bullet_fired',
+                                        x: hand.x + norm_x * 20,
+                                        y: hand.y + norm_y * 20,
+                                        vx: norm_x * 15,  // velocity magnitude
+                                        vy: norm_y * 15,
+                                        damage: weaponDef.damage
+                                    });
+                                }
+
                                 hand.old_x += base_norm_x * weaponDef.recoil; 
                                 hand.old_y += base_norm_y * weaponDef.recoil;
                                 localPlayer.canShoot = false;
@@ -943,6 +1008,17 @@
                                     const norm_x = base_norm_x * Math.cos(spreadAngle) - base_norm_y * Math.sin(spreadAngle);
                                     const norm_y = base_norm_x * Math.sin(spreadAngle) + base_norm_y * Math.cos(spreadAngle);
                                     bullets.push({ x: hand.x + norm_x * 20, y: hand.y + norm_y * 20, old_x: hand.x - norm_x * 20, old_y: hand.y - norm_y * 20, life: 100, damage: weaponDef.damage });
+                                    // Sync bullet to opponent again
+                                    if (gameMode !== 'single') {
+                                        sendData({
+                                            type: 'bullet_fired',
+                                            x: hand.x + norm_x * 20,
+                                            y: hand.y + norm_y * 20,
+                                            vx: norm_x * 15,  // velocity magnitude
+                                            vy: norm_y * 15,
+                                            damage: weaponDef.damage
+                                        });
+                                    }
                                 }
                                 hand.old_x += base_norm_x * weaponDef.recoil; 
                                 hand.old_y += base_norm_y * weaponDef.recoil;
@@ -1071,29 +1147,65 @@
             }
             localPlayer.nearestWeapon = closest_w;
         }
+
+        // NEW: Raycast hitbox for melee weapons
+        function checkMeleeHit(tipStart, tipEnd, targetPoints, damage, speedMult = 1) {
+            const damages = [];
+            for (const p of targetPoints) {
+                if (!p) continue;
+                
+                // Point to line segment distance
+                const L2 = dist(tipStart, tipEnd);
+                if (L2 < 0.001) continue;
+                const L2_sq = L2 * L2;
+                
+                const t = Math.max(0, Math.min(1, 
+                    ((p.x - tipStart.x) * (tipEnd.x - tipStart.x) + 
+                    (p.y - tipStart.y) * (tipEnd.y - tipStart.y)) / L2_sq
+                ));
+                
+                const closestX = tipStart.x + t * (tipEnd.x - tipStart.x);
+                const closestY = tipStart.y + t * (tipEnd.y - tipStart.y);
+                const distToLine = dist(p, {x: closestX, y: closestY});
+                
+                if (distToLine < p.radius + 5) {
+                    const speedAdjustedDamage = damage * (1 + speedMult * 2);
+                    damages.push(speedAdjustedDamage);
+                }
+            }
+            return damages.length > 0 ? damages.reduce((a,b) => a+b) / damages.length : 0;
+        }
         
         function updateMelee() {
-            // --- REFACTORED: For localPlayer ---
             if (!localPlayer.heldWeapon || !localPlayer.rightElbow || !localPlayer.rightHand) return;
             const weapon = localPlayer.heldWeapon;
             const weaponDef = weaponTypes[weapon.type];
             if (weaponDef.melee !== 'swing') { return; }
+            
             const hand = localPlayer.rightHand;
             let angle = Math.atan2(mouse.y - hand.y, mouse.x - hand.x);
+            
             weapon.tip.old_x = weapon.tip.x;
             weapon.tip.old_y = weapon.tip.y;
+            
             let isFlipped = false;
             if (localPoints[0] && (mouse.x < localPoints[0].x)) {
                 isFlipped = true;
             } else if (!localPoints[0] && (mouse.x < hand.x)) {
                 isFlipped = true;
             }
+            
             const localY = isFlipped ? weaponDef.meleeLength : -weaponDef.meleeLength;
             weapon.tip.x = hand.x - (localY * Math.sin(angle));
             weapon.tip.y = hand.y + (localY * Math.cos(angle));
+            
             const tip_vx = weapon.tip.x - weapon.tip.old_x;
             const tip_vy = weapon.tip.y - weapon.tip.old_y;
             const tip_speed = Math.sqrt(tip_vx * tip_vx + tip_vy * tip_vy);
+            
+            // NEW: Store swing speed on weapon for damage calc
+            weapon.swingSpeed = tip_speed;
+            
             if (isPointInWall(weapon.tip.x, weapon.tip.y) && tip_speed > 10) {
                 if (localPlayer.canShoot) {
                     playSound(weaponDef.sound, 0.5);
@@ -1200,6 +1312,31 @@
                     bullets.splice(i, 1);
                 }
             }
+
+            //Update REMOTE/GHOST bullets (rendering only)
+            for (let i = remoteBullets.length - 1; i >= 0; i--) {
+                let b = remoteBullets[i];
+                let vx = b.x - b.old_x;
+                let vy = b.y - b.old_y;
+                
+                const trailSpawns = Math.max(1, Math.floor(Math.sqrt(vx*vx + vy*vy) / 3));
+                for (let j = 1; j <= trailSpawns; j++) {
+                    const t = j / trailSpawns;
+                    bulletTrails.push({ x: lerp(b.old_x, b.x, t), y: lerp(b.old_y, b.y, t), life: 20, maxLife: 20 });
+                }
+                
+                b.old_x = b.x;
+                b.old_y = b.y;
+                b.x += vx;
+                b.y += vy;
+                
+                if (isPointInWall(b.x, b.y)) { b.life = 0; }
+                b.life--;
+                if (b.life <= 0) {
+                    remoteBullets.splice(i, 1);
+                }
+            }
+
         }
 
         function updateBulletTrails() {
@@ -1271,9 +1408,16 @@
         }
 
         function drawBullets() {
-            // ... (same as before) ...
             ctx.fillStyle = 'yellow';
             for (let b of bullets) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+                // NEW: Draw remote bullets (slightly different color)
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';  // Semi-transparent yellow
+            for (let b of remoteBullets) {
                 ctx.beginPath();
                 ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
                 ctx.fill();
@@ -1467,6 +1611,24 @@
                     ctx.textAlign = 'center';
                     ctx.fillText(ammoText, playerObj.headTop.x, playerObj.headTop.y - 20);
                     ctx.textAlign = 'left';
+                }
+            }
+            
+            // NEW: Draw hitbox raycasts in debug mode
+            if (isDebugMode && isLocal) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < points.length; i++) {
+                    for (let j = i + 1; j < Math.min(points.length, i + 3); j++) {
+                        const p1 = points[i];
+                        const p2 = points[j];
+                        if (p1 && p2) {
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
                 }
             }
 
@@ -1702,6 +1864,24 @@
                 updateWeapons(); 
                 
                 updateMelee(); 
+
+                //Check melee hits against remote player
+                if (gameMode !== 'single' && localPlayer.heldWeapon) {
+                    const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+                    if (weaponDef.melee === 'swing') {
+                        const tip = localPlayer.heldWeapon.tip;
+                        const tipOld = { x: tip.old_x, y: tip.old_y };
+                        const speedMult = weaponDef.speedDamageMult || 0;
+                        const damageDealt = checkMeleeHit(tipOld, tip, remotePoints, weaponDef.damage, speedMult);
+                        
+                        if (damageDealt > 0 && localPlayer.canShoot) {
+                            sendData({ type: 'melee_hit', damage: damageDealt });
+                            localPlayer.canShoot = false;
+                            setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown);
+                        }
+                    }
+                }
+
                 updateBullets(); // This now handles hit detection
                 updateBulletTrails(); 
                 
@@ -1774,6 +1954,26 @@
             const data = JSON.parse(event.data);
             
             switch(data.type) {
+                case 'melee_hit':
+                    if (playerHealth.p1 > 0) {
+                        playerHealth.p1 -= data.damage;
+                        if (playerHealth.p1 <= 0) {
+                            triggerPlayerDeath();
+                        }
+                    }
+                    break;
+                case 'bullet_fired':
+                    // Create ghost bullet on remote side
+                    remoteBullets.push({
+                        x: data.x,
+                        y: data.y,
+                        old_x: data.x - data.vx,
+                        old_y: data.y - data.vy,
+                        life: 100,
+                        damage: data.damage,
+                        isGhost: true  // Don't deal damage
+                    });
+                    break;
                 case 'ragdoll':
                     updateRemoteRagdoll(data);
                     break;
@@ -1806,12 +2006,38 @@
                     remotePlayer.username = data.name;
                     remoteUsername = data.name; // Update for score
                     break;
-                case 'weapon_pickup':
-                    // Simple: just create a "held" weapon for the remote
-                    remotePlayer.heldWeapon = { type: data.weaponType };
+                case 'weapon_spawned':
+                    // NEW: Create weapon on joiner's side
+                    const weaponDef = weaponTypes[data.weaponType];
+                    weapons.push({
+                        id: data.id,
+                        type: data.weaponType,
+                        p: { x: data.x, y: data.y, old_x: data.x, old_y: data.y, radius: 10 },
+                        isHeld: false,
+                        ammo: weaponDef.ammo,
+                        maxAmmo: weaponDef.maxAmmo,
+                        despawnTimer: null,
+                        pickupDelayTimer: null,
+                        bobbingAngle: Math.random() * Math.PI * 2,
+                        tip: { x: data.x, y: data.y - (weaponDef.meleeLength || 0), old_x: data.x, old_y: data.y - (weaponDef.meleeLength || 0) }
+                    });
                     break;
-                case 'weapon_drop':
-                    remotePlayer.heldWeapon = null;
+
+                case 'weapon_dropped':
+                    // NEW: Find and respawn weapon by ID
+                    const existingWeapon = weapons.find(w => w.id === data.weaponId);
+                    if (existingWeapon) {
+                        existingWeapon.isHeld = false;
+                        existingWeapon.p.x = data.x;
+                        existingWeapon.p.y = data.y;
+                        existingWeapon.despawnTimer = Date.now();
+                    }
+                    break;
+
+                case 'weapon_pickup':
+                    // NEW: Remove weapon from floor by ID
+                    weapons = weapons.filter(w => w.id !== data.weaponId);
+                    remotePlayer.heldWeapon = { type: data.weaponType, id: data.weaponId };
                     break;
             }
         }
