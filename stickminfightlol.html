@@ -345,7 +345,7 @@
         let remoteBullets = [];  // NEW: Ghost bullets from opponent
 
         let lastSentData = null;
-        let lastSentTime = 0;
+                let lastSentTime = 0;
 
 
 
@@ -1819,11 +1819,16 @@
             if (gameMode === 'single' || !dataChannel || dataChannel.readyState !== 'open') {
                 return;
             }
+            
+            // Only send every 100ms minimum (10 times per second)
+            const now = Date.now();
+            if (now - lastSentTime < 100) return;
+            lastSentTime = now;
 
             // Send minimal point data
             const simplePoints = localPoints.map(p => ({
-                x: p.x,
-                y: p.y,
+                x: Math.round(p.x),
+                y: Math.round(p.y),
                 radius: p.radius
             }));
 
@@ -1847,16 +1852,15 @@
                 
                 simpleWeapon = {
                     type: localPlayer.heldWeapon.type,
-                    tip: localPlayer.heldWeapon.tip, // For melee
+                    tip: localPlayer.heldWeapon.tip,
                     laser: weaponDef.laser,
                     isFlipped: isFlipped,
-                    angle: angle,
-                    hand: { x: localPlayer.rightHand.x, y: localPlayer.rightHand.y },
+                    angle: Math.round(angle * 100) / 100,  // Round angle
+                    hand: { x: Math.round(localPlayer.rightHand.x), y: Math.round(localPlayer.rightHand.y) },
                     melee: weaponDef.melee
                 };
             }
 
-            // Send ammo text
             let ammoText = null;
             if (localPlayer.heldWeapon && !weaponTypes[localPlayer.heldWeapon.type].melee) {
                 ammoText = `${localPlayer.heldWeapon.ammo} / ${localPlayer.heldWeapon.maxAmmo}`;
@@ -1866,12 +1870,13 @@
                 type: 'ragdoll',
                 points: simplePoints,
                 weapon: simpleWeapon,
-                headTop: localPlayer.headTop ? { x: localPlayer.headTop.x, y: localPlayer.headTop.y } : null,
+                headTop: localPlayer.headTop ? { x: Math.round(localPlayer.headTop.x), y: Math.round(localPlayer.headTop.y) } : null,
                 ammoText: ammoText
             };
             
             sendData(data);
         }
+
 
         function animate() {
             let deltaTime = 1;
@@ -1954,68 +1959,15 @@
                 if(gameState.isRoundActive) {
                     checkOutOfBounds(); 
                 }
-
-                function sendLocalPlayerData() {
-                    if (gameMode === 'single' || !dataChannel || dataChannel.readyState !== 'open') {
-                        return;
-                    }
-                    
-                    // Only send every 100ms minimum (10 times per second)
-                    const now = Date.now();
-                    if (now - lastSentTime < 100) return;
-                    lastSentTime = now;
-
-                    // Send minimal point data
-                    const simplePoints = localPoints.map(p => ({
-                        x: Math.round(p.x),
-                        y: Math.round(p.y),
-                        radius: p.radius
-                    }));
-
-                    // Send minimal weapon data
-                    let simpleWeapon = null;
-                    if (localPlayer.heldWeapon && localPlayer.rightHand) {
-                        const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
-                        let angle, isFlipped;
-
-                        if (weaponDef.melee === 'swing' || !weaponDef.melee) {
-                            angle = Math.atan2(mouse.y - localPlayer.rightHand.y, mouse.x - localPlayer.rightHand.x);
-                        } else {
-                            angle = Math.atan2(localPlayer.rightHand.y - localPlayer.rightElbow.y, localPlayer.rightHand.x - localPlayer.rightElbow.x);
-                        }
-                        isFlipped = false;
-                        if (!weaponDef.melee || weaponDef.melee === 'swing') {
-                            if (mouse.x < (localPoints[0] ? localPoints[0].x : localPlayer.rightHand.x)) {
-                                isFlipped = true;
-                            }
-                        }
-                        
-                        simpleWeapon = {
-                            type: localPlayer.heldWeapon.type,
-                            tip: localPlayer.heldWeapon.tip,
-                            laser: weaponDef.laser,
-                            isFlipped: isFlipped,
-                            angle: Math.round(angle * 100) / 100,  // Round angle
-                            hand: { x: Math.round(localPlayer.rightHand.x), y: Math.round(localPlayer.rightHand.y) },
-                            melee: weaponDef.melee
-                        };
-                    }
-
-                    let ammoText = null;
-                    if (localPlayer.heldWeapon && !weaponTypes[localPlayer.heldWeapon.type].melee) {
-                        ammoText = `${localPlayer.heldWeapon.ammo} / ${localPlayer.heldWeapon.maxAmmo}`;
-                    }
-
-                    const data = {
-                        type: 'ragdoll',
-                        points: simplePoints,
-                        weapon: simpleWeapon,
-                        headTop: localPlayer.headTop ? { x: Math.round(localPlayer.headTop.x), y: Math.round(localPlayer.headTop.y) } : null,
-                        ammoText: ammoText
-                    };
-                    
-                    sendData(data);
-                }
+                
+                // NEW: Send data to peer (throttled to 10fps instead of 60fps)
+                if (!gameState.sendThrottleTime) gameState.sendThrottleTime = 0;
+                gameState.sendThrottleTime++;
+                if (gameState.sendThrottleTime >= 6) {  // Send every 6 frames = ~10fps
+                    sendLocalPlayerData();
+                    gameState.sendThrottleTime = 0;
+                }            
+            
 
                 draw();
             }
