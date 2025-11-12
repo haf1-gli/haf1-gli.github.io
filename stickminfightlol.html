@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2D Boxed Canvas - Multiplayer</title>
+    <meta name="description" content="A multiplayer P2P stickman battle game with, two... ironically. or, not ironically defficient fighters">
+    <meta name="keywords" content="game, multiplayer, stickman, battle, chromebook">
+    <meta property="og:title" content="iron defficient fighters ;d">
+    <meta property="og:description" content="Play with your friend, works on chromebook, very buggy.">
+
+    <title>iron defficient fighters ;d</title>
     <!-- NEW: Added Tailwind for UI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -57,7 +62,7 @@
 
     <!-- NEW: Start Screen -->
     <div id="start-screen" class="p-8 rounded-lg shadow-xl text-white max-w-md w-full">
-        <h1 class="text-3xl font-bold text-center text-blue-400 mb-6">Stickman Battle</h1>
+        <h1 class="text-3xl font-bold text-center text-blue-400 mb-6">iron defficient fighters ;d</h1>
         <div class="space-y-4">
             <div>
                 <label for="username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
@@ -156,8 +161,8 @@
         let particles = [];
 
         const playerHealth = {
-            p1: 75, // Local player's health
-            p2: 50, // Remote player's health
+            p1: 100,  // Host (Red, Left)
+            p2: 100,  // Joiner (Blue, Right)
             maxHealth: 100
         };
 
@@ -170,9 +175,11 @@
             slowmoActive: false,
             slowmoTime: 0,
             slowmoDuration: 3000,
-            slowmoSpeed: 0.2
+            slowmoSpeed: 0.2,
+            mapNameDisplay: null,  
+            mapNameTime: null      
         };
-
+        
         let weapons = [];
         let bullets = [];
         let bulletTrails = [];
@@ -285,7 +292,44 @@
                         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
                     ], 
                     "spawns": [{"x": 100, "y": 100}, {"x": 700, "y": 100}] 
+                },
+                { 
+                    "name": "3 story arena",
+                    "map": [
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
+                        [0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+                        [0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+                        [1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1],
+                        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+                        [0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+                        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                    ], 
+                    "spawns": [{"x": 110, "y": 450}, {"x": 670, "y": 450}] 
                 }
+
                 // ... (potential other maps would go here)
             ]
         };
@@ -299,6 +343,10 @@
 
 
         let remoteBullets = [];  // NEW: Ghost bullets from opponent
+
+        let lastSentData = null;
+        let lastSentTime = 0;
+
 
 
         function dist(p1, p2) {
@@ -419,8 +467,8 @@
             const pointRadius = head_size * 0.2; 
 
             // --- REFACTORED: Use localPoints, localSticks, localTorsoPoints, localPlayer ---
-            const start_x = (gameMode === 'client') ? spawnP2.x : spawnP1.x; // NEW: Spawn logic
-            const start_y = (gameMode === 'client') ? spawnP2.y : spawnP1.y;
+            const start_x = (gameMode === 'host') ? spawnP1.x : spawnP2.x;
+            const start_y = (gameMode === 'host') ? spawnP1.y : spawnP2.y;
 
             const shoulder_point = { x: start_x, y: start_y, old_x: start_x, old_y: start_y, radius: pointRadius * 1.5 };
             const hip_point = { x: start_x, y: shoulder_point.y + (body_height * 0.3), old_x: start_x, old_y: shoulder_point.y + (body_height * 0.3), radius: pointRadius * 1.5 };
@@ -479,8 +527,8 @@
             const arm_length = body_height * 0.45;
             const leg_length = body_height * 0.5;
             const pointRadius = head_size * 0.2; 
-            const start_x = (gameMode === 'client') ? spawnP1.x : spawnP2.x;
-            const start_y = (gameMode === 'client') ? spawnP1.y : spawnP2.y;
+            const start_x = (gameMode === 'host') ? spawnP2.x : spawnP1.x;
+            const start_y = (gameMode === 'host') ? spawnP2.y : spawnP1.y;
 
             const shoulder_point = { x: start_x, y: start_y, radius: pointRadius * 1.5 };
             const hip_point = { x: start_x, y: shoulder_point.y + (body_height * 0.3), radius: pointRadius * 1.5 };
@@ -1663,9 +1711,14 @@
             drawBullets();
 
             // --- REFACTORED: Draw both ragdolls ---
-            drawRagdoll(localPoints, localSticks, localPlayer, playerHealth.p1, 'red', true);
+            // LOCAL PLAYER COLOR
+            const localColor = (gameMode === 'host') ? 'red' : 'blue';
+            drawRagdoll(localPoints, localSticks, localPlayer, playerHealth.p1, localColor, true);
+
             if (gameMode !== 'single') {
-                drawRagdoll(remotePoints, remoteSticks, remotePlayer, playerHealth.p2, 'blue', false);
+                // REMOTE PLAYER COLOR
+                const remoteColor = (gameMode === 'host') ? 'blue' : 'red';
+                drawRagdoll(remotePoints, remoteSticks, remotePlayer, playerHealth.p2, remoteColor, false);
             }
 
             // Draw particles (same)
@@ -1828,22 +1881,27 @@
                 deltaTime = gameState.slowmoSpeed;
                 
                 if (gameState.slowmoTime >= gameState.slowmoDuration) {
-                    // Slowmo over, reset
                     gameState.slowmoActive = false;
                     gameState.isRoundActive = true;
                     gameState.roundWinner = null;
                     
-                    // NEW: Host handles map change and weapon spawn
+                    // NEW: Clear old weapons on both sides
+                    weapons = [];
+                    remoteBullets = [];
+                    bullets = [];
+                    
                     if (gameMode === 'host' || gameMode === 'single') {
                         currentMapIndex = Math.floor(Math.random() * mapsData.maps.length);
                         loadMap(currentMapIndex);
-                        // Send map change to client
+                        
                         if (gameMode === 'host') {
-                            sendData({ type: 'map_change', index: currentMapIndex });
-                            // Host clears and spawns new weapons
-                            weapons = [];
-                            spawnWeapon(); 
-                            // TODO: Send weapon data
+                            const mapName = mapsData.maps[currentMapIndex].name;
+                            sendData({ 
+                                type: 'map_change', 
+                                index: currentMapIndex,
+                                name: mapName  // NEW: Send map name
+                            });
+                            spawnWeapon();
                         }
                     }
                     
@@ -1897,8 +1955,67 @@
                     checkOutOfBounds(); 
                 }
 
-                // NEW: Send data to peer
-                sendLocalPlayerData();
+                function sendLocalPlayerData() {
+                    if (gameMode === 'single' || !dataChannel || dataChannel.readyState !== 'open') {
+                        return;
+                    }
+                    
+                    // Only send every 100ms minimum (10 times per second)
+                    const now = Date.now();
+                    if (now - lastSentTime < 100) return;
+                    lastSentTime = now;
+
+                    // Send minimal point data
+                    const simplePoints = localPoints.map(p => ({
+                        x: Math.round(p.x),
+                        y: Math.round(p.y),
+                        radius: p.radius
+                    }));
+
+                    // Send minimal weapon data
+                    let simpleWeapon = null;
+                    if (localPlayer.heldWeapon && localPlayer.rightHand) {
+                        const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
+                        let angle, isFlipped;
+
+                        if (weaponDef.melee === 'swing' || !weaponDef.melee) {
+                            angle = Math.atan2(mouse.y - localPlayer.rightHand.y, mouse.x - localPlayer.rightHand.x);
+                        } else {
+                            angle = Math.atan2(localPlayer.rightHand.y - localPlayer.rightElbow.y, localPlayer.rightHand.x - localPlayer.rightElbow.x);
+                        }
+                        isFlipped = false;
+                        if (!weaponDef.melee || weaponDef.melee === 'swing') {
+                            if (mouse.x < (localPoints[0] ? localPoints[0].x : localPlayer.rightHand.x)) {
+                                isFlipped = true;
+                            }
+                        }
+                        
+                        simpleWeapon = {
+                            type: localPlayer.heldWeapon.type,
+                            tip: localPlayer.heldWeapon.tip,
+                            laser: weaponDef.laser,
+                            isFlipped: isFlipped,
+                            angle: Math.round(angle * 100) / 100,  // Round angle
+                            hand: { x: Math.round(localPlayer.rightHand.x), y: Math.round(localPlayer.rightHand.y) },
+                            melee: weaponDef.melee
+                        };
+                    }
+
+                    let ammoText = null;
+                    if (localPlayer.heldWeapon && !weaponTypes[localPlayer.heldWeapon.type].melee) {
+                        ammoText = `${localPlayer.heldWeapon.ammo} / ${localPlayer.heldWeapon.maxAmmo}`;
+                    }
+
+                    const data = {
+                        type: 'ragdoll',
+                        points: simplePoints,
+                        weapon: simpleWeapon,
+                        headTop: localPlayer.headTop ? { x: Math.round(localPlayer.headTop.x), y: Math.round(localPlayer.headTop.y) } : null,
+                        ammoText: ammoText
+                    };
+                    
+                    sendData(data);
+                }
 
                 draw();
             }
@@ -2001,6 +2118,7 @@
                     break;
                 case 'map_change':
                     loadMap(data.index);
+                    console.log(`Map changed to: ${data.name}`);
                     break;
                 case 'username':
                     remotePlayer.username = data.name;
@@ -2093,6 +2211,10 @@
                 connectionStatus.textContent = `Connection: connected`;
                 connectionModal.classList.add('hidden');
                 isConnecting = false;
+                
+                // NEW: Start game loop after connection
+                startGameAfterConnection();
+                
                 // Send my username
                 sendData({ type: 'username', name: localPlayer.username });
             };
@@ -2212,23 +2334,36 @@
             gameMode = mode;
             
             if (mode === 'single') {
-                playerHealth.p2 = 0; // No opponent
+                playerHealth.p2 = 0;
                 remotePlayer.username = "---";
+                // Single player starts immediately
+                window.addEventListener('resize', resizeCanvas);
+                loadMap(0);
+                resetPlayer();
+                resizeCanvas(); 
+                spawnWeapon();
+                setInterval(spawnWeapon, 20000);
+                animate();
             } else if (mode === 'host') {
                 startHostGame();
             } else if (mode === 'client') {
                 startJoinGame();
             }
-            
+        }
+
+        function startGameAfterConnection() {
             window.addEventListener('resize', resizeCanvas);
-            loadMap(0); // Load default map first
+            loadMap(0);
             resetPlayer();
             resizeCanvas(); 
-            if (mode === 'host' || gameMode === 'single') {
-                spawnWeapon(); 
-                setInterval(spawnWeapon, 20000); 
+            
+            // Only host spawns weapons
+            if (gameMode === 'host') {
+                spawnWeapon();
+                setInterval(spawnWeapon, 20000);
             }
-            animate(); 
+            
+            animate();
         }
 
         hostButton.addEventListener('click', () => startGame('host'));
