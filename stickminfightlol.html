@@ -9,6 +9,7 @@
     <meta property="og:description" content="Play with your friend, works on chromebook, very buggy.">
 
     <title>iron defficient fighters ;d</title>
+    <!--  Added Tailwind for UI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         html, body {
@@ -116,10 +117,6 @@
         let localUsername = 'Player';
         let remoteUsername = 'Opponent';
         let isConnecting = false;
-
-        //  Smoothing for remote player
-        const remoteSmoothingFactor = 0.23; // 0 = instant, 1 = never updates. Try 0.1-0.2
-        let smoothedRemotePoints = [];
 
         // --- Core Game Vars ---
         const world_width = 800;
@@ -579,17 +576,11 @@
         function updateRemoteRagdoll(data) {
             if (!data || !data.points) return;
             
-            // Initialize smoothed points on first update
-            if (smoothedRemotePoints.length === 0) {
-                smoothedRemotePoints = data.points.map(p => ({ x: p.x, y: p.y, radius: p.radius }));
-            }
-            
-            // Smooth each point toward the target
+            // Update points
             for (let i = 0; i < data.points.length; i++) {
                 if (remotePoints[i] && data.points[i]) {
-                    // Lerp between current and target position
-                    remotePoints[i].x = lerp(remotePoints[i].x, data.points[i].x, remoteSmoothingFactor);
-                    remotePoints[i].y = lerp(remotePoints[i].y, data.points[i].y, remoteSmoothingFactor);
+                    remotePoints[i].x = data.points[i].x;
+                    remotePoints[i].y = data.points[i].y;
                     remotePoints[i].radius = data.points[i].radius;
                 }
             }
@@ -608,16 +599,17 @@
             } else {
                 remotePlayer.heldWeapon = null;
             }
-        
+
             // Update headtop
             if (data.headTop) {
-                if (!remotePlayer.headTop) {
+                if (!remotePlayer.headTop) { // Failsafe
                     remotePlayer.headTop = { x: 0, y: 0 };
                 }
-                remotePlayer.headTop.x = lerp(remotePlayer.headTop.x, data.headTop.x, remoteSmoothingFactor);
-                remotePlayer.headTop.y = lerp(remotePlayer.headTop.y, data.headTop.y, remoteSmoothingFactor);
+                remotePlayer.headTop.x = data.headTop.x;
+                remotePlayer.headTop.y = data.headTop.y;
             }
-        
+
+            // Update ammo display for remote player
             remotePlayer.ammoText = data.ammoText;
         }
 
@@ -1549,13 +1541,11 @@
             if (!isDebugMode && points.length > 2) {
                 const shoulder_point = points[0];
                 const h_top = points[2];
-                const h_left = points[3];
-                const h_right = points[4];
                 if (shoulder_point && h_top) {
                     const head_center_x = (shoulder_point.x + h_top.x) / 2;
                     const head_center_y = (shoulder_point.y + h_top.y) / 2;
-                    // Fixed head radius - don't recalculate, use fixed size
-                    const head_radius = 12; // Fixed size instead of dynamic
+                    const head_dist = dist(h_top, {x: head_center_x, y: head_center_y});
+                    const head_radius = (head_dist > 0.01) ? head_dist * 1.5 * 0.7 : 10; 
                     ctx.fillStyle = health <= 0 ? '#808080' : color;
                     ctx.beginPath();
                     ctx.arc(head_center_x, head_center_y, head_radius, 0, Math.PI * 2);
