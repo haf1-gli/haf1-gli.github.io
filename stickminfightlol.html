@@ -224,8 +224,8 @@
             'shotgun': { image: shotgun_img, sound: shotgun_sound, ammo: 5, maxAmmo: 5, shootCooldown: 1000, recoil: 20, bulletCount: 6, spread: 0.5, damage: 10, imgWidth: 50, imgHeight: 15 },
             'minigun': { image: minigun_img, sound: minigun_loop_sound, ammo: 100, maxAmmo: 100, shootCooldown: 50, spinUpTime: 2000, recoil: 2, bulletCount: 1, spread: 0.3, damage: 5, imgWidth: 60, imgHeight: 20 },
             'sniper': { image: sniper_img, sound: sniper_sound, ammo: 3, maxAmmo: 3, shootCooldown: 1500, recoil: 30, bulletCount: 1, spread: 0, damage: 75, laser: true, imgWidth: 70, imgHeight: 20 },
-            'katana': { image: katana_img, sound: katana_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 500, recoil: 0, bulletCount: 0, spread: 0, damage: 40, imgWidth: 15 * 0.8, imgHeight: 60 * 0.8, melee: 'swing', meleeLength: 50 * 0.8,speedDamageMult: 0.5 },
-            'knife': { image: knife_img, sound: null, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 300, recoil: 0, bulletCount: 0, spread: 0, damage: 25, imgWidth: 10, imgHeight: 30, melee: 'stab' }
+            'katana': { image: katana_img, sound: katana_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 500, recoil: 0, bulletCount: 0, spread: 0, damage: 14, imgWidth: 15 * 0.8, imgHeight: 60 * 0.8, melee: 'swing', meleeLength: 50 * 0.8,speedDamageMult: 0.5 },
+            'knife': { image: knife_img, sound: null, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 300, recoil: 0, bulletCount: 0, spread: 0, damage: 12, imgWidth: 10, imgHeight: 30, melee: 'stab' }
         };
 
         let isDebugMode = false;
@@ -878,7 +878,7 @@
                     if (localPlayer.canShoot) {
                         punchForce = 40;
                         cooldown = weaponDef.shootCooldown;
-                        damage = weaponDef.damage * 3;  //  Knife does 3x damage when stabbing
+                        damage = weaponDef.damage * 1.8;  //  Knife does 1.8x damage when stabbing
                         // ... rest of stab code
                     } else {
                         return;
