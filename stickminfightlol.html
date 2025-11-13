@@ -9,7 +9,6 @@
     <meta property="og:description" content="Play with your friend, works on chromebook, very buggy.">
 
     <title>iron defficient fighters ;d</title>
-    <!-- NEW: Added Tailwind for UI -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         html, body {
@@ -28,7 +27,7 @@
             display: block;
             background-color: #000;
         }
-        /* NEW: Styles for UI elements */
+        /*  Styles for UI elements */
         #start-screen {
             background-color: rgba(30, 41, 59, 0.9);
             border-radius: 12px;
@@ -60,7 +59,7 @@
 </head>
 <body class="bg-gray-900">
 
-    <!-- NEW: Start Screen -->
+    <!--  Start Screen -->
     <div id="start-screen" class="p-8 rounded-lg shadow-xl text-white max-w-md w-full">
         <h1 class="text-3xl font-bold text-center text-blue-400 mb-6">iron defficient fighters ;d</h1>
         <div class="space-y-4">
@@ -74,7 +73,7 @@
         </div>
     </div>
 
-    <!-- NEW: Connection Modal -->
+    <!--  Connection Modal -->
     <div id="connection-modal" class="hidden absolute p-6 rounded-lg shadow-2xl text-white w-full max-w-lg">
         <h2 id="modal-title" class="text-2xl font-bold mb-4">Connection Data</h2>
         <p id="modal-instructions" class="text-gray-300 mb-4">Waiting for connection...</p>
@@ -93,7 +92,7 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // --- NEW: UI Elements ---
+        // ---  UI Elements ---
         const startScreen = document.getElementById('start-screen');
         const connectionModal = document.getElementById('connection-modal');
         const modalTitle = document.getElementById('modal-title');
@@ -109,7 +108,7 @@
         const singlePlayerButton = document.getElementById('single-player-button');
         const usernameInput = document.getElementById('username');
 
-        // --- NEW: Game & Network State ---
+        // ---  Game & Network State ---
         let gameMode = 'menu'; // 'menu', 'single', 'host', 'client'
         let peerConnection;
         let dataChannel;
@@ -117,6 +116,10 @@
         let localUsername = 'Player';
         let remoteUsername = 'Opponent';
         let isConnecting = false;
+
+        //  Smoothing for remote player
+        const remoteSmoothingFactor = 0.15; // 0 = instant, 1 = never updates. Try 0.1-0.2
+        let smoothedRemotePoints = [];
 
         // --- Core Game Vars ---
         const world_width = 800;
@@ -149,7 +152,7 @@
             username: "Player 1" // Default
         };
         
-        // --- NEW: Remote Player ---
+        // ---  Remote Player ---
         let remotePoints = [];
         let remoteSticks = [];
         const remotePlayer = {
@@ -342,7 +345,7 @@
         const oobDuration = 1000;
 
 
-        let remoteBullets = [];  // NEW: Ghost bullets from opponent
+        let remoteBullets = [];  //  Ghost bullets from opponent
 
         let lastSentData = null;
                 let lastSentTime = 0;
@@ -400,7 +403,7 @@
             // ... (same as before) ...
             if (!gameState.isRoundActive) return;
 
-            // NEW: Opponent gets the point
+            //  Opponent gets the point
             if (gameMode !== 'single') {
                 gameState.p2Score++;
                 startSlowmoAndReset(remotePlayer.username);
@@ -438,13 +441,13 @@
             }
             
             playerHealth.p1 = 0;
-            // NEW: Send death message to opponent
+            //  Send death message to opponent
             if (gameMode !== 'single') {
                 sendData({ type: 'i_died' });
             }
         }
 
-        // --- NEW: Start slowmo and reset round ---
+        // ---  Start slowmo and reset round ---
         function startSlowmoAndReset(winnerName) {
             gameState.isRoundActive = false;
             gameState.roundWinner = winnerName;
@@ -516,7 +519,7 @@
             localSticks.push({ p1: r_knee, p2: r_foot, length: leg_length / 2, visible: true, type: 'limb' });
         }
         
-        // --- NEW: Create remote ragdoll (non-physical) ---
+        // ---  Create remote ragdoll (non-physical) ---
         function createRemoteRagdoll() {
             remotePoints = [];
             remoteSticks = [];
@@ -572,15 +575,21 @@
             remoteSticks.push({ p1: r_knee, p2: r_foot, visible: true, type: 'limb' });
         }
 
-        // --- NEW: Update remote ragdoll from network data ---
+        // ---  Update remote ragdoll from network data ---
         function updateRemoteRagdoll(data) {
             if (!data || !data.points) return;
             
-            // Update points
+            // Initialize smoothed points on first update
+            if (smoothedRemotePoints.length === 0) {
+                smoothedRemotePoints = data.points.map(p => ({ x: p.x, y: p.y, radius: p.radius }));
+            }
+            
+            // Smooth each point toward the target
             for (let i = 0; i < data.points.length; i++) {
                 if (remotePoints[i] && data.points[i]) {
-                    remotePoints[i].x = data.points[i].x;
-                    remotePoints[i].y = data.points[i].y;
+                    // Lerp between current and target position
+                    remotePoints[i].x = lerp(remotePoints[i].x, data.points[i].x, remoteSmoothingFactor);
+                    remotePoints[i].y = lerp(remotePoints[i].y, data.points[i].y, remoteSmoothingFactor);
                     remotePoints[i].radius = data.points[i].radius;
                 }
             }
@@ -599,17 +608,16 @@
             } else {
                 remotePlayer.heldWeapon = null;
             }
-
+        
             // Update headtop
             if (data.headTop) {
-                if (!remotePlayer.headTop) { // Failsafe
+                if (!remotePlayer.headTop) {
                     remotePlayer.headTop = { x: 0, y: 0 };
                 }
-                remotePlayer.headTop.x = data.headTop.x;
-                remotePlayer.headTop.y = data.headTop.y;
+                remotePlayer.headTop.x = lerp(remotePlayer.headTop.x, data.headTop.x, remoteSmoothingFactor);
+                remotePlayer.headTop.y = lerp(remotePlayer.headTop.y, data.headTop.y, remoteSmoothingFactor);
             }
-
-            // Update ammo display for remote player
+        
             remotePlayer.ammoText = data.ammoText;
         }
 
@@ -628,7 +636,7 @@
             localPlayer.canPunch = true;
             
             playerHealth.p1 = playerHealth.maxHealth;
-            // NEW: Reset P2 health as well
+            //  Reset P2 health as well
             playerHealth.p2 = playerHealth.maxHealth;
             
             createLocalRagdoll();
@@ -801,7 +809,7 @@
             const x = Math.random() * (world_width - 100) + 50; 
             const y = -20;
             
-            // NEW: Add weapon ID
+            //  Add weapon ID
             const weaponId = weaponIdCounter++;
             
             weapons.push({ 
@@ -817,7 +825,7 @@
                 tip: { x: x, y: y - (weaponDef.meleeLength || 0), old_x: x, old_y: y - (weaponDef.meleeLength || 0) } 
             });
             
-            // NEW: Send weapon creation to other player (host only)
+            //  Send weapon creation to other player (host only)
             if (gameMode === 'host' || gameMode === 'single') {
                 if (gameMode === 'host') {
                     sendData({ 
@@ -870,7 +878,7 @@
 
             let punchForce = 30;
             let cooldown = localPlayer.punchCooldown;
-            let damage = 5;  // NEW: Punch base damage
+            let damage = 5;  //  Punch base damage
             
             if (localPlayer.heldWeapon) {
                 const weaponDef = weaponTypes[localPlayer.heldWeapon.type];
@@ -878,7 +886,7 @@
                     if (localPlayer.canShoot) {
                         punchForce = 40;
                         cooldown = weaponDef.shootCooldown;
-                        damage = weaponDef.damage * 3;  // NEW: Knife does 3x damage when stabbing
+                        damage = weaponDef.damage * 3;  //  Knife does 3x damage when stabbing
                         // ... rest of stab code
                     } else {
                         return;
@@ -902,7 +910,7 @@
             hand.old_x -= norm_x * punchForce;
             hand.old_y -= norm_y * punchForce;
             
-            // NEW: Check punch hit on opponent
+            //  Check punch hit on opponent
             if (gameMode !== 'single') {
                 const punchReach = 50;
                 const punchTip = { x: hand.x + norm_x * punchReach, y: hand.y + norm_y * punchReach };
@@ -929,7 +937,7 @@
             if (keys.q && localPlayer.heldWeapon) {
                 stopMinigunSpin();
                     
-                // NEW: Send weapon drop with ID and position
+                //  Send weapon drop with ID and position
                 if (gameMode !== 'single') {
                     sendData({ 
                         type: 'weapon_dropped', 
@@ -956,7 +964,7 @@
                 localPlayer.heldWeapon = localPlayer.nearestWeapon;
                 localPlayer.heldWeapon.isHeld = true;
                 
-                // NEW: Send weapon pickup with ID
+                //  Send weapon pickup with ID
                 if (gameMode !== 'single') {
                     sendData({ 
                         type: 'weapon_pickup', 
@@ -1138,7 +1146,7 @@
                     oobTimer = Date.now();
                 } else {
                     if (Date.now() - oobTimer > oobDuration) {
-                        if (gameState.isRoundActive) triggerPlayerDeath(); // NEW: Check if round active
+                        if (gameState.isRoundActive) triggerPlayerDeath(); //  Check if round active
                     }
                 }
             } else {
@@ -1196,7 +1204,7 @@
             localPlayer.nearestWeapon = closest_w;
         }
 
-        // NEW: Raycast hitbox for melee weapons
+        //  Raycast hitbox for melee weapons
         function checkMeleeHit(tipStart, tipEnd, targetPoints, damage, speedMult = 1) {
             const damages = [];
             for (const p of targetPoints) {
@@ -1251,7 +1259,7 @@
             const tip_vy = weapon.tip.y - weapon.tip.old_y;
             const tip_speed = Math.sqrt(tip_vx * tip_vx + tip_vy * tip_vy);
             
-            // NEW: Store swing speed on weapon for damage calc
+            //  Store swing speed on weapon for damage calc
             weapon.swingSpeed = tip_speed;
             
             if (isPointInWall(weapon.tip.x, weapon.tip.y) && tip_speed > 10) {
@@ -1292,7 +1300,7 @@
             }
         }
         
-        // --- NEW: Check for bullet hits on a target ---
+        // ---  Check for bullet hits on a target ---
         function checkBulletHit(bullet, targetPoints) {
             for (const p of targetPoints) {
                 if (!p) continue;
@@ -1347,7 +1355,7 @@
                 }
                 if (isPointInWall(b.x, b.y)) { b.life = 0; }
 
-                // --- NEW: Check hit against remote player ---
+                // ---  Check hit against remote player ---
                 if (gameMode !== 'single' && b.life > 0) {
                     if (checkBulletHit(b, remotePoints)) {
                         b.life = 0;
@@ -1463,7 +1471,7 @@
                 ctx.fill();
             }
 
-                // NEW: Draw remote bullets (slightly different color)
+                //  Draw remote bullets (slightly different color)
             ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';  // Semi-transparent yellow
             for (let b of remoteBullets) {
                 ctx.beginPath();
@@ -1473,16 +1481,19 @@
         }
         
         function drawHealthBars() {
-            // --- REFACTORED: For P1 (local) and P2 (remote) ---
             const barWidth = 200;
             const barHeight = 20;
             const barMargin = 10;
-
-            // P1 (Local)
+        
+            // Determine YOUR color based on game mode
+            const yourColor = (gameMode === 'host') ? '#FF0000' : '#0000FF'; // Red if host, Blue if joiner
+            const theirColor = (gameMode === 'host') ? '#0000FF' : '#FF0000'; // Blue if host, Red if joiner
+        
+            // YOUR HEALTH BAR (Left side)
             const p1HealthPercent = playerHealth.p1 / playerHealth.maxHealth;
             ctx.fillStyle = '#555'; 
             ctx.fillRect(barMargin, barMargin, barWidth, barHeight);
-            ctx.fillStyle = '#FF0000'; // Red
+            ctx.fillStyle = yourColor; // Use YOUR color
             ctx.fillRect(barMargin, barMargin, barWidth * p1HealthPercent, barHeight);
             ctx.strokeStyle = '#FFF';
             ctx.lineWidth = 2;
@@ -1491,14 +1502,13 @@
             ctx.font = '14px Arial';
             ctx.textAlign = 'left';
             ctx.fillText(localPlayer.username, barMargin + 5, barMargin + barHeight + 15);
-
-
-            // P2 (Remote)
+        
+            // THEIR HEALTH BAR (Right side)
             if (gameMode !== 'single') {
                 const p2HealthPercent = playerHealth.p2 / playerHealth.maxHealth;
                 ctx.fillStyle = '#555';
                 ctx.fillRect(world_width - barWidth - barMargin, barMargin, barWidth, barHeight);
-                ctx.fillStyle = '#0000FF'; // Blue
+                ctx.fillStyle = theirColor; // Use THEIR color
                 ctx.fillRect(world_width - barWidth - barMargin, barMargin, barWidth * p2HealthPercent, barHeight);
                 ctx.strokeStyle = '#FFF';
                 ctx.lineWidth = 2;
@@ -1510,7 +1520,7 @@
             }
         }
 
-        // --- NEW: Generic Ragdoll Drawer ---
+        // ---  Generic Ragdoll Drawer ---
         function drawRagdoll(points, sticks, playerObj, health, color, isLocal) {
             if (points.length === 0) return;
 
@@ -1662,7 +1672,7 @@
                 }
             }
             
-            // NEW: Draw hitbox raycasts in debug mode
+            //  Draw hitbox raycasts in debug mode
             if (isDebugMode && isLocal) {
                 ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
                 ctx.lineWidth = 2;
@@ -1814,7 +1824,7 @@
             draw(); 
         }
 
-        // --- NEW: Send local player data ---
+        // ---  Send local player data ---
         function sendLocalPlayerData() {
             if (gameMode === 'single' || !dataChannel || dataChannel.readyState !== 'open') {
                 return;
@@ -1890,7 +1900,7 @@
                     gameState.isRoundActive = true;
                     gameState.roundWinner = null;
                     
-                    // NEW: Clear old weapons on both sides
+                    //  Clear old weapons on both sides
                     weapons = [];
                     remoteBullets = [];
                     bullets = [];
@@ -1904,7 +1914,7 @@
                             sendData({ 
                                 type: 'map_change', 
                                 index: currentMapIndex,
-                                name: mapName  // NEW: Send map name
+                                name: mapName  //  Send map name
                             });
                             spawnWeapon();
                         }
@@ -1960,7 +1970,7 @@
                     checkOutOfBounds(); 
                 }
                 
-                // NEW: Send data to peer (throttled to 10fps instead of 60fps)
+                //  Send data to peer (throttled to 10fps instead of 60fps)
                 if (!gameState.sendThrottleTime) gameState.sendThrottleTime = 0;
                 gameState.sendThrottleTime++;
                 if (gameState.sendThrottleTime >= 6) {  // Send every 6 frames = ~10fps
@@ -1975,7 +1985,7 @@
             requestAnimationFrame(animate);
         }
 
-        // --- NEW: WebRTC and UI Logic ---
+        // ---  WebRTC and UI Logic ---
 
         // --- This function securely fetches credentials from our Vercel API ---
         async function fetchTurnCredentials() {
@@ -2077,7 +2087,7 @@
                     remoteUsername = data.name; // Update for score
                     break;
                 case 'weapon_spawned':
-                    // NEW: Create weapon on joiner's side
+                    //  Create weapon on joiner's side
                     const weaponDef = weaponTypes[data.weaponType];
                     weapons.push({
                         id: data.id,
@@ -2094,7 +2104,7 @@
                     break;
 
                 case 'weapon_dropped':
-                    // NEW: Find and respawn weapon by ID
+                    //  Find and respawn weapon by ID
                     const existingWeapon = weapons.find(w => w.id === data.weaponId);
                     if (existingWeapon) {
                         existingWeapon.isHeld = false;
@@ -2105,7 +2115,7 @@
                     break;
 
                 case 'weapon_pickup':
-                    // NEW: Remove weapon from floor by ID
+                    //  Remove weapon from floor by ID
                     weapons = weapons.filter(w => w.id !== data.weaponId);
                     remotePlayer.heldWeapon = { type: data.weaponType, id: data.weaponId };
                     break;
@@ -2164,7 +2174,7 @@
                 connectionModal.classList.add('hidden');
                 isConnecting = false;
                 
-                // NEW: Start game loop after connection
+                //  Start game loop after connection
                 startGameAfterConnection();
                 
                 // Send my username
