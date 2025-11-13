@@ -1472,43 +1472,49 @@
             }
         }
         
-        function drawHealthBars() {
+       function drawHealthBars() {
             const barWidth = 200;
             const barHeight = 20;
             const barMargin = 10;
         
-            // Determine YOUR color based on game mode
-            const yourColor = (gameMode === 'host') ? '#FF0000' : '#0000FF'; // Red if host, Blue if joiner
-            const theirColor = (gameMode === 'host') ? '#0000FF' : '#FF0000'; // Blue if host, Red if joiner
+            const isLocalHost = gameMode === 'host';
+            const yourColor = isLocalHost ? '#FF0000' : '#0000FF';
+            const theirColor = isLocalHost ? '#0000FF' : '#FF0000';
+            const yourHealth = playerHealth.p1;
+            const theirHealth = playerHealth.p2;
         
-            // YOUR HEALTH BAR (Left side)
-            const p1HealthPercent = playerHealth.p1 / playerHealth.maxHealth;
+            // YOUR HEALTH BAR
+            const yourHealthPercent = yourHealth / playerHealth.maxHealth;
+            const yourBarX = isLocalHost ? barMargin : world_width - barWidth - barMargin; // Left if host, right if client
+            
             ctx.fillStyle = '#555'; 
-            ctx.fillRect(barMargin, barMargin, barWidth, barHeight);
-            ctx.fillStyle = yourColor; // Use YOUR color
-            ctx.fillRect(barMargin, barMargin, barWidth * p1HealthPercent, barHeight);
+            ctx.fillRect(yourBarX, barMargin, barWidth, barHeight);
+            ctx.fillStyle = yourColor;
+            ctx.fillRect(yourBarX, barMargin, barWidth * yourHealthPercent, barHeight);
             ctx.strokeStyle = '#FFF';
             ctx.lineWidth = 2;
-            ctx.strokeRect(barMargin, barMargin, barWidth, barHeight);
+            ctx.strokeRect(yourBarX, barMargin, barWidth, barHeight);
             ctx.fillStyle = 'white';
             ctx.font = '14px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(localPlayer.username, barMargin + 5, barMargin + barHeight + 15);
+            ctx.textAlign = isLocalHost ? 'left' : 'right';
+            ctx.fillText(localPlayer.username, isLocalHost ? yourBarX + 5 : yourBarX + barWidth - 5, barMargin + barHeight + 15);
         
-            // THEIR HEALTH BAR (Right side)
+            // THEIR HEALTH BAR
             if (gameMode !== 'single') {
-                const p2HealthPercent = playerHealth.p2 / playerHealth.maxHealth;
+                const theirHealthPercent = theirHealth / playerHealth.maxHealth;
+                const theirBarX = isLocalHost ? world_width - barWidth - barMargin : barMargin; // Right if host, left if client
+                
                 ctx.fillStyle = '#555';
-                ctx.fillRect(world_width - barWidth - barMargin, barMargin, barWidth, barHeight);
-                ctx.fillStyle = theirColor; // Use THEIR color
-                ctx.fillRect(world_width - barWidth - barMargin, barMargin, barWidth * p2HealthPercent, barHeight);
+                ctx.fillRect(theirBarX, barMargin, barWidth, barHeight);
+                ctx.fillStyle = theirColor;
+                ctx.fillRect(theirBarX, barMargin, barWidth * theirHealthPercent, barHeight);
                 ctx.strokeStyle = '#FFF';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(world_width - barWidth - barMargin, barMargin, barWidth, barHeight);
+                ctx.strokeRect(theirBarX, barMargin, barWidth, barHeight);
                 ctx.fillStyle = 'white';
                 ctx.font = '14px Arial';
-                ctx.textAlign = 'right';
-                ctx.fillText(remotePlayer.username, world_width - barMargin - 5, barMargin + barHeight + 15);
+                ctx.textAlign = isLocalHost ? 'right' : 'left';
+                ctx.fillText(remotePlayer.username, isLocalHost ? theirBarX + barWidth - 5 : theirBarX + 5, barMargin + barHeight + 15);
             }
         }
 
@@ -1794,7 +1800,10 @@
             ctx.fillStyle = 'white';
             ctx.font = '24px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(`${localPlayer.username}: ${gameState.p1Score} | ${remotePlayer.username}: ${gameState.p2Score}`, canvas.width / 2, 50);
+            const scoreText = gameMode === 'host' 
+                ? `${localPlayer.username}: ${gameState.p1Score} | ${remotePlayer.username}: ${gameState.p2Score}`
+                : `${remotePlayer.username}: ${gameState.p2Score} | ${localPlayer.username}: ${gameState.p1Score}`;
+            ctx.fillText(scoreText, canvas.width / 2, 50);
             ctx.textAlign = 'left';
         }
 
