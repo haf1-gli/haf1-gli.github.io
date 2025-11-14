@@ -608,13 +608,6 @@
                 remotePlayer.heldWeapon = null;
             }
         
-            if (data.headTop) {
-                if (!remotePlayer.headTop) {
-                    remotePlayer.headTop = { x: 0, y: 0 };
-                }
-                remotePlayer.headTop.x = data.headTop.x;
-                remotePlayer.headTop.y = data.headTop.y;
-            }
         
             remotePlayer.ammoText = data.ammoText;
         }
@@ -1922,8 +1915,8 @@
                 const target = remotePlayer.targetPoints[i];
                 
                 if (current && target) {
-                    current.x = current.x + (target.x - current.x) * t * 0.3; // Smooth easing
-                    current.y = current.y + (target.y - current.y) * t * 0.3;
+                    current.x = current.x + (target.x - current.x) * t * 0.15; // Smooth easing
+                    current.y = current.y + (target.y - current.y) * t * 0.15;
                     current.radius = target.radius;
                 }
             }
