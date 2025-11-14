@@ -2015,7 +2015,7 @@
                 //  Send data to peer (throttled to 10fps instead of 60fps)
                 if (!gameState.sendThrottleTime) gameState.sendThrottleTime = 0;
                 gameState.sendThrottleTime++;
-                if (gameState.sendThrottleTime >= 4) {  // Send every 4 frames = ~15fps
+                if (gameState.sendThrottleTime >= 6) {  // Send every 6 frames = ~10fps
                     sendLocalPlayerData();
                     gameState.sendThrottleTime = 0;
                 }            
