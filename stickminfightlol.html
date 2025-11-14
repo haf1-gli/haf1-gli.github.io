@@ -1929,7 +1929,7 @@
                 gameState.slowmoTime += 16;
                 deltaTime = gameState.slowmoSpeed;
                 
-                if (gameState.slowmoTime >= gameState.slowmoDuration) {
+               if (gameState.slowmoTime >= gameState.slowmoDuration) {
                     gameState.slowmoActive = false;
                     gameState.isRoundActive = true;
                     gameState.roundWinner = null;
@@ -1940,7 +1940,11 @@
                     bullets = [];
                     
                     if (gameMode === 'host' || gameMode === 'single') {
-                        currentMapIndex = Math.floor(Math.random() * mapsData.maps.length);
+                        let newMapIndex;
+                        do {
+                            newMapIndex = Math.floor(Math.random() * mapsData.maps.length);
+                        } while (newMapIndex === currentMapIndex && mapsData.maps.length > 1);
+                        currentMapIndex = newMapIndex;
                         loadMap(currentMapIndex);
                         
                         if (gameMode === 'host') {
