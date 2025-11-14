@@ -134,7 +134,7 @@
         let localPoints = [];
         let localSticks = [];
         let localTorsoPoints = [];
-        const localPlayer = {
+        const localPlayer = {{
             heldWeapon: null,
             nearestWeapon: null,
             rightHand: null, 
@@ -146,7 +146,8 @@
             isSpinningUp: false,
             spinUpStartTime: 0,
             activeLoopSound: null,
-            username: "Player 1" // Default
+            username: "Player 1",
+            minigunSyncSent: false 
         };
         
         // ---  Remote Player ---
@@ -155,7 +156,11 @@
         const remotePlayer = {
             heldWeapon: null,
             headTop: null,
-            username: "Player 2" // Default
+            username: "Player 2",
+            // Interpolation
+            targetPoints: null,
+            lastUpdateTime: 0,
+            interpolationDuration: 100  // ms to interpolate over
         };
 
         let particles = [];
@@ -220,6 +225,8 @@
         } catch (e) {
             console.warn("Audio loading may require user interaction.");
         }
+
+        let remoteActiveMinigunSounds = new Map();  // Track remote minigun sounds
         
         // ... (weaponTypes object remains the same) ...
         const weaponTypes = {
@@ -377,17 +384,20 @@
         }
         
         function stopMinigunSpin() {
-            // ... (same as before) ...
             localPlayer.isSpinningUp = false;
             if (localPlayer.activeLoopSound) {
                 localPlayer.activeLoopSound.pause();
                 localPlayer.activeLoopSound.currentTime = 0;
                 localPlayer.activeLoopSound = null;
             }
+            // SEND MINIGUN STOP
+            if (gameMode !== 'single') {
+                sendData({ type: 'minigun_spinup', isSpinning: false });
+            }
+            localPlayer.minigunSyncSent = false;
         }
 
         function loadMap(index) {
-            // ... (same as before) ...
             if (index < 0 || index >= mapsData.maps.length) {
                 console.error("Invalid map index:", index);
                 return;
@@ -579,14 +589,9 @@
         function updateRemoteRagdoll(data) {
             if (!data || !data.points) return;
             
-            // Update points
-            for (let i = 0; i < data.points.length; i++) {
-                if (remotePoints[i] && data.points[i]) {
-                    remotePoints[i].x = data.points[i].x;
-                    remotePoints[i].y = data.points[i].y;
-                    remotePoints[i].radius = data.points[i].radius;
-                }
-            }
+            // Store target points for interpolation
+            remotePlayer.targetPoints = data.points.map(p => ({ ...p }));
+            remotePlayer.lastUpdateTime = Date.now();
             
             // Update remote player's weapon
             if (data.weapon) {
@@ -602,20 +607,17 @@
             } else {
                 remotePlayer.heldWeapon = null;
             }
-
-            // Update headtop
+        
             if (data.headTop) {
-                if (!remotePlayer.headTop) { // Failsafe
+                if (!remotePlayer.headTop) {
                     remotePlayer.headTop = { x: 0, y: 0 };
                 }
                 remotePlayer.headTop.x = data.headTop.x;
                 remotePlayer.headTop.y = data.headTop.y;
             }
-
-            // Update ammo display for remote player
+        
             remotePlayer.ammoText = data.ammoText;
         }
-
 
         function resetPlayer() {
             // --- REFACTORED: For local player ---
@@ -993,15 +995,21 @@
                             return;
                         }
                         if (!localPlayer.isSpinningUp) {
-                            localPlayer.isSpinningUp = true;
-                            localPlayer.spinUpStartTime = Date.now();
-                            if (localPlayer.activeLoopSound) localPlayer.activeLoopSound.pause();
-                            localPlayer.activeLoopSound = weaponDef.sound.cloneNode();
-                            localPlayer.activeLoopSound.loop = true;
-                            localPlayer.activeLoopSound.playbackRate = 0.1; 
-                            localPlayer.activeLoopSound.volume = 0.01; 
-                            localPlayer.activeLoopSound.play().catch(e => {});
-                        }
+                                localPlayer.isSpinningUp = true;
+                                localPlayer.spinUpStartTime = Date.now();
+                                if (localPlayer.activeLoopSound) localPlayer.activeLoopSound.pause();
+                                localPlayer.activeLoopSound = weaponDef.sound.cloneNode();
+                                localPlayer.activeLoopSound.loop = true;
+                                localPlayer.activeLoopSound.playbackRate = 0.1; 
+                                localPlayer.activeLoopSound.volume = 0.01; 
+                                localPlayer.activeLoopSound.play().catch(e => {});
+                                
+                                if (gameMode !== 'single') {
+                                    sendData({ type: 'minigun_spinup', isSpinning: true });
+                                }
+                                localPlayer.minigunSyncSent = true;
+                            }
+
                         const spinTime = Date.now() - localPlayer.spinUpStartTime;
                         const spinProgress = Math.min(1, spinTime / weaponDef.spinUpTime);
                         if (localPlayer.activeLoopSound) {
@@ -1046,7 +1054,17 @@
                             if (localPlayer.heldWeapon.ammo <= 0) {
                             } else {
                                 localPlayer.heldWeapon.ammo--; 
-                                playSound(weaponDef.sound, 0.2); 
+                                playSound(weaponDef.sound, 0.2);
+
+                                if (gameMode !== 'single') {
+                                    sendData({
+                                        type: 'weapon_sound',
+                                        weaponType: localPlayer.heldWeapon.type,
+                                        volume: 0.2
+                                    });
+                                }
+                                
+                                                                
                                 const hand = localPlayer.rightHand;
                                 const elbow = localPlayer.rightElbow;
                                 let dx = hand.x - elbow.x;
@@ -1891,7 +1909,26 @@
             sendData(data);
         }
 
-
+        function interpolateRemoteRagdoll() {
+            if (!remotePlayer.targetPoints) return;
+            
+            const now = Date.now();
+            const timeSinceUpdate = now - remotePlayer.lastUpdateTime;
+            const t = Math.min(1, timeSinceUpdate / remotePlayer.interpolationDuration);
+            
+            // Smoothly interpolate between current and target positions
+            for (let i = 0; i < remotePoints.length && i < remotePlayer.targetPoints.length; i++) {
+                const current = remotePoints[i];
+                const target = remotePlayer.targetPoints[i];
+                
+                if (current && target) {
+                    current.x = current.x + (target.x - current.x) * t * 0.3; // Smooth easing
+                    current.y = current.y + (target.y - current.y) * t * 0.3;
+                    current.radius = target.radius;
+                }
+            }
+        }
+        
         function animate() {
             let deltaTime = 1;
             
@@ -1969,6 +2006,7 @@
 
                 handleCollisions(); 
                 updateParticles(); 
+                interpolateRemoteRagdoll();
 
                 if(gameState.isRoundActive) {
                     checkOutOfBounds(); 
@@ -2122,6 +2160,28 @@
                     //  Remove weapon from floor by ID
                     weapons = weapons.filter(w => w.id !== data.weaponId);
                     remotePlayer.heldWeapon = { type: data.weaponType, id: data.weaponId };
+                    break;
+                case 'minigun_spinup':
+                    if (data.isSpinning && !remoteActiveMinigunSounds.has('minigun')) {
+                        let remoteSound = minigun_loop_sound.cloneNode();
+                        remoteSound.loop = true;
+                        remoteSound.playbackRate = 0.1;
+                        remoteSound.volume = 0.1;
+                        remoteSound.play().catch(e => {});
+                        remoteActiveMinigunSounds.set('minigun', remoteSound);
+                    } else if (!data.isSpinning && remoteActiveMinigunSounds.has('minigun')) {
+                        const sound = remoteActiveMinigunSounds.get('minigun');
+                        sound.pause();
+                        sound.currentTime = 0;
+                        remoteActiveMinigunSounds.delete('minigun');
+                    }
+                    break;
+                
+                case 'weapon_sound':
+                    const soundToPlay = weaponTypes[data.weaponType]?.sound;
+                    if (soundToPlay) {
+                        playSound(soundToPlay, data.volume || 0.2);
+                    }
                     break;
             }
         }
