@@ -1565,14 +1565,14 @@
             }
 
             // Draw head
+            // Draw head
             if (!isDebugMode && points.length > 2) {
                 const shoulder_point = points[0];
                 const h_top = points[2];
                 if (shoulder_point && h_top) {
                     const head_center_x = (shoulder_point.x + h_top.x) / 2;
                     const head_center_y = (shoulder_point.y + h_top.y) / 2;
-                    const head_dist = dist(h_top, {x: head_center_x, y: head_center_y});
-                    const head_radius = (head_dist > 0.01) ? head_dist * 1.5 * 0.7 : 10; 
+                    const head_radius = 12;  // Static size
                     ctx.fillStyle = health <= 0 ? '#808080' : color;
                     ctx.beginPath();
                     ctx.arc(head_center_x, head_center_y, head_radius, 0, Math.PI * 2);
