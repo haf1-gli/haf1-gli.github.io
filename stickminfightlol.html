@@ -189,6 +189,32 @@
         let bullets = [];
         let bulletTrails = [];
 
+
+       //----Bg and FXsss----
+        // Starry Background 
+        let stars = [];
+        const starCount = 100;
+
+        // Camera Shake 
+        let cameraShake = {
+            intensity: 0,
+            duration: 0,
+            elapsed: 0
+        };
+
+        function generateStars() {
+            stars = [];
+            for (let i = 0; i < starCount; i++) {
+                stars.push({
+                    x: Math.random() * world_width,
+                    y: Math.random() * world_height,
+                    radius: Math.random() * 1.5,
+                    opacity: Math.random() * 0.7 + 0.3
+                });
+            }
+        }
+
+
         // --- Image & Sound Loading ---
         const pistol_img = new Image();
         pistol_img.src = 'https://raw.githubusercontent.com/haf1-gli/haf1-gli.github.io/main/stickbattle/assets/textures/pistol.png';
@@ -231,9 +257,9 @@
         // ... (weaponTypes object remains the same) ...
         const weaponTypes = {
             'pistol': { image: pistol_img, sound: pistol_sound, ammo: 12, maxAmmo: 12, shootCooldown: 200, recoil: 5, bulletCount: 1, spread: 0.1, damage: 15, imgWidth: 30, imgHeight: 20 },
-            'shotgun': { image: shotgun_img, sound: shotgun_sound, ammo: 5, maxAmmo: 5, shootCooldown: 1000, recoil: 20, bulletCount: 6, spread: 0.5, damage: 10, imgWidth: 50, imgHeight: 15 },
-            'minigun': { image: minigun_img, sound: minigun_loop_sound, ammo: 100, maxAmmo: 100, shootCooldown: 50, spinUpTime: 2000, recoil: 2, bulletCount: 1, spread: 0.3, damage: 5, imgWidth: 60, imgHeight: 20 },
-            'sniper': { image: sniper_img, sound: sniper_sound, ammo: 3, maxAmmo: 3, shootCooldown: 1500, recoil: 30, bulletCount: 1, spread: 0, damage: 75, laser: true, imgWidth: 70, imgHeight: 20 },
+            'shotgun': { image: shotgun_img, sound: shotgun_sound, ammo: 5, maxAmmo: 5, shootCooldown: 1000, recoil: 60, bulletCount: 6, spread: 0.5, damage: 10, imgWidth: 50, imgHeight: 15 },
+            'minigun': { image: minigun_img, sound: minigun_loop_sound, ammo: 100, maxAmmo: 100, shootCooldown: 50, spinUpTime: 2000, recoil: 4, bulletCount: 1, spread: 0.3, damage: 5, imgWidth: 60, imgHeight: 20 },
+            'sniper': { image: sniper_img, sound: sniper_sound, ammo: 3, maxAmmo: 3, shootCooldown: 1500, recoil: 40, bulletCount: 1, spread: 0, damage: 75, laser: true, imgWidth: 70, imgHeight: 20 },
             'katana': { image: katana_img, sound: katana_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 500, recoil: 0, bulletCount: 0, spread: 0, damage: 14, imgWidth: 15 * 0.8, imgHeight: 60 * 0.8, melee: 'swing', meleeLength: 50 * 0.8,speedDamageMult: 0.5 },
             'knife': { image: knife_img, sound: knife_sound, ammo: Infinity, maxAmmo: Infinity, shootCooldown: 300, recoil: 0, bulletCount: 0, spread: 0, damage: 12, imgWidth: 10, imgHeight: 30, melee: 'stab' }
         };
@@ -486,6 +512,7 @@
             }
             
             playerHealth.p1 = 0;
+            applyShake(10, 500);  // Big shake
             //  Send death message to opponent
             if (gameMode !== 'single') {
                 sendData({ type: 'i_died' });
@@ -1073,6 +1100,7 @@
 
                                 hand.old_x += base_norm_x * weaponDef.recoil; 
                                 hand.old_y += base_norm_y * weaponDef.recoil;
+                                applyShake(2, 100);  // Light shake
                                 localPlayer.canShoot = false;
                                 setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown); 
                             }
@@ -1119,6 +1147,7 @@
                                 }
                                 hand.old_x += base_norm_x * weaponDef.recoil; 
                                 hand.old_y += base_norm_y * weaponDef.recoil;
+                                applyShake(1, 100);  // Light shake
                                 localPlayer.canShoot = false;
                                 setTimeout(() => { localPlayer.canShoot = true; }, weaponDef.shootCooldown); 
                             }
@@ -1751,10 +1780,48 @@
             }
         }
 
+        function drawStarryBackground() {
+            for (let star of stars) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function applyShake(intensity, duration) {
+            cameraShake.intensity = intensity;
+            cameraShake.duration = duration;
+            cameraShake.elapsed = 0;
+        }
 
         function draw() {
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawStarryBackground();
+            
+            // Calculate shake offset and rotation
+            let shakeX = 0, shakeY = 0, shakeRotation = 0;
+            if (cameraShake.intensity > 0) {
+                const progress = cameraShake.elapsed / cameraShake.duration;
+                const easeOut = 1 - progress * progress; // Smooth easing
+                const shake = cameraShake.intensity * easeOut;
+                
+                // Position shake (more intense)
+                shakeX = (Math.random() - 0.5) * shake * 4;
+                shakeY = (Math.random() - 0.5) * shake * 4;
+                
+                // Rotational shake
+                shakeRotation = (Math.random() - 0.5) * shake * 0.015;
+            }
+            
+            // Apply shake translation and rotation
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(shakeRotation);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            ctx.translate(shakeX, shakeY);
 
             if (hasBorders) {
                 ctx.strokeStyle = '#fff';
@@ -1767,18 +1834,14 @@
             drawBulletTrails(); 
             drawBullets();
 
-            // --- REFACTORED: Draw both ragdolls ---
-            // LOCAL PLAYER COLOR
             const localColor = (gameMode === 'host') ? 'red' : 'blue';
             drawRagdoll(localPoints, localSticks, localPlayer, playerHealth.p1, localColor, true);
 
             if (gameMode !== 'single') {
-                // REMOTE PLAYER COLOR
                 const remoteColor = (gameMode === 'host') ? 'blue' : 'red';
                 drawRagdoll(remotePoints, remoteSticks, remotePlayer, playerHealth.p2, remoteColor, false);
             }
 
-            // Draw particles (same)
             for (let p of particles) {
                 if (p.isExplosion) {
                     ctx.fillStyle = `rgba(255, 100, 0, ${p.life / 60})`;
@@ -1790,7 +1853,6 @@
                 ctx.fill();
             }
 
-            // OOB Timer (same, but for local player)
             if (oobTimer !== null) {
                 const timeLeft = (oobDuration - (Date.now() - oobTimer)) / 1000;
                 const timerText = timeLeft.toFixed(1);
@@ -1809,7 +1871,6 @@
                 ctx.textAlign = 'left';
             }
             
-            // Debug text (same)
             if (isDebugMode) {
                 let avg_vx = 0, avg_vy = 0;
                 if (localPoints.length > 0) {
@@ -1828,7 +1889,6 @@
             
             drawHealthBars();
 
-            // Draw slowmo winner screen
             if (gameState.slowmoActive && gameState.roundWinner) {
                 const winnerColor = gameState.roundWinner === localPlayer.username ? '#FF0000' : '#0000FF';
                 
@@ -1845,7 +1905,6 @@
                 ctx.fillText(`${gameState.p1Score} - ${gameState.p2Score}`, canvas.width / 2, canvas.height / 2 + 60);
             }
             
-            // Score display
             ctx.fillStyle = 'white';
             ctx.font = '24px Arial';
             ctx.textAlign = 'center';
@@ -1854,6 +1913,8 @@
                 : `${remotePlayer.username}: ${gameState.p2Score} | ${localPlayer.username}: ${gameState.p1Score}`;
             ctx.fillText(scoreText, canvas.width / 2, 50);
             ctx.textAlign = 'left';
+            
+            ctx.restore();
         }
 
         function resizeCanvas() {
@@ -2005,6 +2066,14 @@
                     applyAimingForce(); 
                 }
                 
+                if (cameraShake.intensity > 0) {
+                    cameraShake.elapsed += 16;
+                    if (cameraShake.elapsed >= cameraShake.duration) {
+                        cameraShake.intensity = 0;
+                    }
+                }
+
+
                 updatePoints(localPoints); 
                 updateSticks(localSticks);
                 updateWeapons(); 
@@ -2133,6 +2202,7 @@
                 case 'hit':
                     if (playerHealth.p1 > 0) {
                         playerHealth.p1 -= data.damage;
+                        applyShake(20, 200);  // Medium shake
                         if (playerHealth.p1 <= 0) {
                             triggerPlayerDeath(); // I was hit and I died
                         }
@@ -2399,6 +2469,7 @@
                 loadMap(0);
                 resetPlayer();
                 resizeCanvas(); 
+                generateStars();
                 spawnWeapon();
                 setInterval(spawnWeapon, 20000);
                 animate();
