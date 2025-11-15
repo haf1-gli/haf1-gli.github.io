@@ -26,10 +26,17 @@
             margin-bottom: 20px;
         }
 
+        h2 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #b0b0b0;
+        }
+
         .grid {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+            margin-bottom: 20px;
         }
 
         .grid-item {
@@ -40,6 +47,7 @@
             text-decoration: none;
             color: #e0e0e0;
             display: inline-block;
+            transition: background-color 0.2s;
         }
 
         .grid-item:hover {
@@ -48,6 +56,11 @@
 
         .error {
             color: #ff6b6b;
+        }
+
+        .empty {
+            color: #666;
+            font-style: italic;
         }
     </style>
 </head>
@@ -79,19 +92,37 @@
                 return;
             }
 
-            const grid = document.createElement('div');
-            grid.className = 'grid';
+            // Separate games into single-player and multiplayer
+            const singlePlayer = items.filter(item => item.type !== 'multiplayer');
+            const multiPlayer = items.filter(item => item.type === 'multiplayer');
 
-            items.forEach(item => {
-                const link = document.createElement('a');
-                link.className = 'grid-item';
-                link.href = `/${item.directory}/`;
-                link.textContent = item.name;
-                grid.appendChild(link);
-            });
+            let html = '';
 
-            container.innerHTML = '';
-            container.appendChild(grid);
+            // Single-player section
+            html += '<h2>Single Player</h2>';
+            if (singlePlayer.length > 0) {
+                html += '<div class="grid">';
+                singlePlayer.forEach(item => {
+                    html += `<a class="grid-item" href="/${item.directory}/">${item.name}</a>`;
+                });
+                html += '</div>';
+            } else {
+                html += '<p class="empty">No single-player games yet</p>';
+            }
+
+            // Multiplayer section
+            html += '<h2>Multiplayer</h2>';
+            if (multiPlayer.length > 0) {
+                html += '<div class="grid">';
+                multiPlayer.forEach(item => {
+                    html += `<a class="grid-item" href="/${item.directory}/">${item.name}</a>`;
+                });
+                html += '</div>';
+            } else {
+                html += '<p class="empty">No multiplayer games yet</p>';
+            }
+
+            container.innerHTML = html;
         }
 
         loadGrid();
