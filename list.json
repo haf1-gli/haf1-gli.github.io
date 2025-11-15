@@ -1,5 +1,5 @@
 [
-  { "name": "Tank", "directory": "tank.html" },
-  { "name": "Maze 95", "directory": "maze" },
-  { "name": "???", "directory": "stickminfightlol.html" }
+  { "name": "Tank", "directory": "tank.html", "type": "multiplayer" },
+  { "name": "Maze 95", "directory": "maze", "type": "singleplayer" },
+  { "name": "???", "directory": "stickminfightlol.html", "type": "multiplayer" }
 ]
